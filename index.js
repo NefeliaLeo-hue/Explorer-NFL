@@ -8,11 +8,12 @@ if (!extension_settings[extName]) {
         entryMode: 'both',
         worldCategories: ['日常', '战斗', '重要设定'],
         presetsCategories: ['常用预设', '破限', '测试'],
-        worldMap: {},       
-        presetsMap: {},     
-        recycleBin: []      
+        worldMap: {},
+        presetsMap: {},
+        recycleBin: []
     };
 }
+
 const settings = extension_settings[extName];
 if (!settings.worldCategories) settings.worldCategories = ['日常', '战斗', '重要设定'];
 if (!settings.presetsCategories) settings.presetsCategories = ['常用预设', '破限', '测试'];
@@ -30,8 +31,8 @@ const SVG = {
     restore: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px;"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>`
 };
 
-let currentTab = 'world';     
-let currentFilterCat = 'all'; 
+let currentTab = 'world';
+let currentFilterCat = 'all';
 let selectedItemNames = new Set();
 
 const scanResources = () => {
@@ -39,16 +40,15 @@ const scanResources = () => {
     const presets = new Set(Object.keys(settings.presetsMap));
 
     $('#world_info select option, select#world_info_select option, select#world_editor_select option').each(function() {
-        // 关键修复：恢复标准的 ||
-        const val = $(this).val() \vert{}\vert{}$(this).text();
+        const val = $(this).val() || $(this).text();
         const clean = String(val).trim();
         if (clean && clean !== '--- 选择以编辑 ---' && clean !== 'None' && clean !== '创建') worlds.add(clean);
     });
+
     if (Array.isArray(window.world_names)) window.world_names.forEach(w => worlds.add(w));
 
     $('#openai_preset option, #chat_completion_preset option, #settings_preset option, select[id*="preset"] option').each(function() {
-        // 关键修复：恢复标准的 ||
-        const val = $(this).val() \vert{}\vert{}$(this).text();
+        const val = $(this).val() || $(this).text();
         const clean = String(val).trim();
         if (clean && clean !== '---' && clean !== 'None') presets.add(clean);
     });
@@ -74,6 +74,7 @@ const renderModalUI = () => {
             <button class="menu_button st-am-tab-btn danger" data-tab="recycle" style="flex:0.8; margin:0; display:flex; align-items:center; justify-content:center; ${isRecycle ? 'border-color:#dc3545; font-weight:bold; background:rgba(220,53,69,0.2);' : ''}">${SVG.trash} 回收站 (${settings.recycleBin.length})</button>
         </div>
     `;
+
     body.append(navHtml);
 
     if (isRecycle) {
@@ -95,6 +96,7 @@ const renderModalUI = () => {
                 `;
             });
         }
+
         body.append(`
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
                 <span style="font-size:0.9em; opacity:0.85;">已丢弃的项目清单：</span>
@@ -116,6 +118,7 @@ const renderModalUI = () => {
             <button class="menu_button st-am-filter-cat" data-cat="all" style="margin:0; padding:3px 8px; font-size:0.8em; ${currentFilterCat === 'all' ? 'border-color:var(--SmartThemeQuoteColor); font-weight:bold;' : ''}">全部 (${allItems.length})</button>
             <button class="menu_button st-am-filter-cat" data-cat="uncategorized" style="margin:0; padding:3px 8px; font-size:0.8em; ${currentFilterCat === 'uncategorized' ? 'border-color:var(--SmartThemeQuoteColor); font-weight:bold;' : ''}">未分类</button>
     `;
+
     categoriesList.forEach(cat => {
         const count = allItems.filter(i => itemMap[i] === cat).length;
         const isCur = currentFilterCat === cat;
@@ -126,6 +129,7 @@ const renderModalUI = () => {
             </div>
         `;
     });
+
     catBadgesHtml += `</div>`;
 
     const createCatHtml = `
@@ -201,6 +205,7 @@ const mountUIRoot = () => {
         </div>
     </div>
     `;
+
     $("body").append(html);
 
     $("#st-am-modal-wrapper").on("click", function(e) {
@@ -208,12 +213,14 @@ const mountUIRoot = () => {
     });
 
     $(document).off("click.stAmClose").on("click.stAmClose", ".st-am-close-btn", function(e) {
-        e.preventDefault(); e.stopPropagation();
+        e.preventDefault();
+        e.stopPropagation();
         $("#st-am-modal-wrapper").css("display", "none");
     });
 
     $(document).off("click.stAmTab").on("click.stAmTab", ".st-am-tab-btn", function(e) {
-        e.preventDefault(); e.stopPropagation();
+        e.preventDefault();
+        e.stopPropagation();
         currentTab = $(this).data("tab");
         currentFilterCat = 'all';
         selectedItemNames.clear();
@@ -221,14 +228,16 @@ const mountUIRoot = () => {
     });
 
     $(document).off("click.stAmFilter").on("click.stAmFilter", ".st-am-filter-cat", function(e) {
-        e.preventDefault(); e.stopPropagation();
+        e.preventDefault();
+        e.stopPropagation();
         currentFilterCat = String($(this).data("cat"));
         selectedItemNames.clear();
         renderModalUI();
     });
 
     $(document).off("click.stAmAddCat").on("click.stAmAddCat", "#st-am-add-cat-btn", function(e) {
-        e.preventDefault(); e.stopPropagation();
+        e.preventDefault();
+        e.stopPropagation();
         const val = $("#st-am-new-cat-input").val().trim();
         if (!val) return;
         const targetList = currentTab === 'world' ? settings.worldCategories : settings.presetsCategories;
@@ -241,7 +250,8 @@ const mountUIRoot = () => {
     });
 
     $(document).off("click.stAmDelCat").on("click.stAmDelCat", ".st-am-del-cat", function(e) {
-        e.preventDefault(); e.stopPropagation();
+        e.preventDefault();
+        e.stopPropagation();
         const cat = String($(this).data("cat"));
         if (confirm(`确定要删除分类【${cat}】吗？\n该分类下的项目将自动退回“未分类”，不会删除实际文件。`)) {
             const targetList = currentTab === 'world' ? settings.worldCategories : settings.presetsCategories;
@@ -266,7 +276,8 @@ const mountUIRoot = () => {
 
     $(document).off("change.stAmSelectAll").on("change.stAmSelectAll", "#st-am-select-all", function() {
         const isChecked = $(this).is(':checked');
-        $('.st-am-item-cb').each(function() {$(this).prop('checked', isChecked);
+        $('.st-am-item-cb').each(function() {
+            $(this).prop('checked', isChecked);
             const name = String($(this).data("name"));
             if (isChecked) selectedItemNames.add(name);
             else selectedItemNames.delete(name);
@@ -274,7 +285,8 @@ const mountUIRoot = () => {
     });
 
     $(document).off("click.stAmBatchMove").on("click.stAmBatchMove", "#st-am-batch-move-btn", function(e) {
-        e.preventDefault(); e.stopPropagation();
+        e.preventDefault();
+        e.stopPropagation();
         if (selectedItemNames.size === 0) return typeof toastr !== 'undefined' ? toastr.warning('请先勾选需要移动的项目') : null;
         const targetCat = $("#st-am-batch-move-sel").val();
         const targetMap = currentTab === 'world' ? settings.worldMap : settings.presetsMap;
@@ -286,11 +298,16 @@ const mountUIRoot = () => {
     });
 
     $(document).off("click.stAmBatchDel").on("click.stAmBatchDel", "#st-am-batch-del-btn", function(e) {
-        e.preventDefault(); e.stopPropagation();
+        e.preventDefault();
+        e.stopPropagation();
         if (selectedItemNames.size === 0) return typeof toastr !== 'undefined' ? toastr.warning('请先勾选要删除的项目') : null;
         const targetMap = currentTab === 'world' ? settings.worldMap : settings.presetsMap;
         selectedItemNames.forEach(name => {
-            settings.recycleBin.push({ type: currentTab, name: name, oldCat: targetMap[name] || '' });
+            settings.recycleBin.push({
+                type: currentTab,
+                name: name,
+                oldCat: targetMap[name] || ''
+            });
         });
         selectedItemNames.clear();
         saveSettingsDebounced();
@@ -299,7 +316,8 @@ const mountUIRoot = () => {
     });
 
     $(document).off("click.stAmRestore").on("click.stAmRestore", ".st-am-restore-btn", function(e) {
-        e.preventDefault(); e.stopPropagation();
+        e.preventDefault();
+        e.stopPropagation();
         const idx = parseInt($(this).data("idx"), 10);
         if (!isNaN(idx) && settings.recycleBin[idx]) {
             const item = settings.recycleBin.splice(idx, 1)[0];
@@ -312,7 +330,8 @@ const mountUIRoot = () => {
     });
 
     $(document).off("click.stAmEmptyRecycle").on("click.stAmEmptyRecycle", "#st-am-empty-recycle-btn", function(e) {
-        e.preventDefault(); e.stopPropagation();
+        e.preventDefault();
+        e.stopPropagation();
         if (confirm("⚠️ 确定彻底清空回收站吗？此操作无法恢复！")) {
             settings.recycleBin = [];
             saveSettingsDebounced();
@@ -322,7 +341,8 @@ const mountUIRoot = () => {
     });
 
     $(document).off("click.stAmRescan").on("click.stAmRescan", "#st-am-rescan-btn", function(e) {
-        e.preventDefault(); e.stopPropagation();
+        e.preventDefault();
+        e.stopPropagation();
         scanResources();
         renderModalUI();
         if (typeof toastr !== 'undefined') toastr.info('扫描完成！');
@@ -343,6 +363,7 @@ const injectButtons = () => {
     if (mode === 'native' || mode === 'both') {
         const presetEl = $('#openai_preset, #chat_completion_preset, #settings_preset').filter(':visible').first();
         const targetEl = presetEl.length ? presetEl : $('#openai_preset, #chat_completion_preset, #settings_preset').first();
+
         if (targetEl.length && !$('#st-am-btn-preset').length) {
             targetEl.closest('.flex-container, div').after(`
                 <div id="st-am-btn-preset" class="menu_button st-am-native-btn" style="width:100%; margin:8px 0; box-sizing:border-box; display:flex; justify-content:center; align-items:center;">
@@ -356,6 +377,7 @@ const injectButtons = () => {
 
     if (mode === 'native' || mode === 'both') {
         const worldBox = $('#world_info');
+
         if (worldBox.length && !$('#st-am-btn-world').length) {
             worldBox.prepend(`
                 <div id="st-am-btn-world" class="menu_button st-am-native-btn" style="width:100%; margin:8px 0; box-sizing:border-box; display:flex; justify-content:center; align-items:center;">
@@ -376,6 +398,7 @@ const injectButtons = () => {
         if (targetItem.length) {
             const rowContainer = targetItem.closest('div, li');
             const menuList = rowContainer.parent();
+
             if (menuList.length && !menuList.find('#st-am-btn-magic').length) {
                 rowContainer.after(`
                     <div id="st-am-btn-magic" class="st-am-native-btn" style="cursor:pointer; display:flex; width:100%; box-sizing:border-box; margin:4px 0; padding:8px 12px; justify-content:flex-start;">
@@ -393,61 +416,78 @@ jQuery(async () => {
     mountUIRoot();
 
     $(document).off("click.stAmBtn").on("click.stAmBtn", "#st-am-btn-preset", function(e) {
-        e.preventDefault(); e.stopPropagation();
+        e.preventDefault();
+        e.stopPropagation();
         openManagerModal('preset');
     });
 
     $(document).off("click.stAmWorldBtn").on("click.stAmWorldBtn", "#st-am-btn-world", function(e) {
-        e.preventDefault(); e.stopPropagation();
+        e.preventDefault();
+        e.stopPropagation();
         openManagerModal('world');
     });
 
     $(document).off("click.stAmMagicBtn").on("click.stAmMagicBtn", "#st-am-btn-magic", function(e) {
-        e.preventDefault(); e.stopPropagation();
+        e.preventDefault();
+        e.stopPropagation();
         openManagerModal('world');
         $(this).closest('div[style*="position"], .popup, .dropdown').hide();
     });
 
     setInterval(injectButtons, 500);
 
-    // 标准加载侧边栏 HTML
+    // 加载扩展设置面板（新版 SillyTavern 推荐方式）
     try {
-        const htmlFile = await $.get(`/scripts/extensions/third-party/${extName}/index.html`);
-        const timer = setInterval(() => {
-            if ($("#extensions_settings").length && !$("#st-am-extension-settings").length) {
-                $("#extensions_settings").append(htmlFile);
+        const { renderExtensionTemplateAsync } = getContext();
 
-                $("#st-am-extension-settings .inline-drawer-toggle").off("click").on("click", function(e) {
-                    e.preventDefault();
-                    const icon = $(this).find(".inline-drawer-icon");
-                    const content = $(this).siblings(".inline-drawer-content");
-                    icon.toggleClass("down up");
-                    content.slideToggle(200);
-                });
+        const html = await renderExtensionTemplateAsync(
+            `third-party/${extName}`,
+            'settings'
+        );
 
-                if (settings.entryMode) {
-                    $("#st-am-entry-mode").val(settings.entryMode);
-                }
+        $('#extensions_settings2').append(html);
 
-                $("#st-am-save-btn").css("white-space", "nowrap").off("click").on("click", (e) => { 
-                    e.preventDefault(); e.stopPropagation();
-                    settings.entryMode = $("#st-am-entry-mode").val();
-                    saveSettingsDebounced();
-                    if (typeof toastr !== 'undefined') toastr.success("设置已保存！"); 
-                });
+        $("#st-am-extension-settings .inline-drawer-toggle")
+            .off("click.stAmDrawer")
+            .on("click.stAmDrawer", function(e) {
+                e.preventDefault();
+                e.stopPropagation();
 
-                $("#st-am-test-open-btn").off("click").on("click", (e) => {
-                    e.preventDefault(); e.stopPropagation();
-                    openManagerModal('world');
-                });
+                const icon = $(this).find(".inline-drawer-icon");
+                const content = $(this).siblings(".inline-drawer-content");
 
-                clearInterval(timer);
-                if (typeof toastr !== 'undefined') {
-                    toastr.success("Explorer-NFL 加载成功！请滑到最底部查看。");
-                }
+                icon.toggleClass("down up");
+                content.slideToggle(200);
+            });
+
+        if (settings.entryMode) {
+            $("#st-am-entry-mode").val(settings.entryMode);
+        }
+
+        $("#st-am-save-btn").off("click").on("click", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+
+            settings.entryMode = $("#st-am-entry-mode").val();
+            saveSettingsDebounced();
+
+            if (typeof toastr !== 'undefined') {
+                toastr.success("设置已保存！");
             }
-        }, 500);
+        });
+
+        $("#st-am-test-open-btn").off("click").on("click", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+
+            openManagerModal('world');
+        });
+
+        if (typeof toastr !== 'undefined') {
+            toastr.success("Explorer-NFL 加载成功！");
+        }
+
     } catch (err) {
-        console.error(`[${extName}] 侧边栏 HTML 加载失败，请检查路径:`, err);
+        console.error(`[${extName}] 设置面板加载失败:`, err);
     }
 });
