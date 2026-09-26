@@ -1,6 +1,12 @@
 import { getContext, extension_settings } from '/scripts/extensions.js';
 import { saveSettingsDebounced, eventSource, event_types } from '/script.js';
 
+import { getContext, extension_settings } from '/scripts/extensions.js';
+import { saveSettingsDebounced, eventSource, event_types } from '/script.js';
+
+// 插入下面这句探针代码，如果文件被加载，页面右上角必定会弹窗
+toastr.success("【调试】资源管理插件已被成功读取并执行！", "Explorer-NFL");
+
 const extName = "Explorer-NFL";
 
 // 初始化扩展持久化存储
