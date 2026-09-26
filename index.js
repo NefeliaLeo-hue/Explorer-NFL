@@ -3,7 +3,7 @@ import { saveSettingsDebounced, eventSource, event_types } from '/script.js';
 
 const PLUGIN_ID = 'st-advanced-manager';
 // 注意：如果你改了文件夹名字，这里的文件夹名必须跟着改！
-const FOLDER_NAME = 'st-advanced-manager'; 
+const FOLDER_NAME = 'Explorer-NFL'; 
 
 if (!extension_settings[PLUGIN_ID]) {
     extension_settings[PLUGIN_ID] = {
