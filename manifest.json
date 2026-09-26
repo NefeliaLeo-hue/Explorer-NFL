@@ -1,10 +1,13 @@
 {
-  "display_name": "Explorer-NFL-资源管理",
-  "name": "Explorer-NFL",
-  "id": "Explorer-NFL",
-  "version": "1.0.8",
-  "type": "extension",
-  "js": "index.js",
-  "css": "style.css",
-  "author": "Nefelia-hue"
+    "display_name": "Explorer-NFL-资源管理",
+    "name": "Explorer-NFL",
+    "version": "1.0.8",
+    "author": "Nefelia-hue",
+    "description": "资源高级批量管理器",
+    "requires": [],
+    "optional": [],
+    "homePage": "",
+    "js": "index.js",
+    "css": "style.css",
+    "loading_order": 100
 }
