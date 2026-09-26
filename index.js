@@ -1,15 +1,8 @@
-// 【核心修复】：只导入用到的两个变量，彻底断绝 API 兼容性导致的静默崩溃！
-import { extension_settings } from '/scripts/extensions.js';
-import { saveSettingsDebounced } from '/script.js';
-
-// 终极探针：如果导入成功没报错，这行字必定出现
-if (typeof toastr !== 'undefined') {
-    toastr.info("【Explorer-NFL】模块导入成功！核心代码开始运行...", "系统提示");
-}
+import { getContext, extension_settings } from '/scripts/extensions.js';
+import { saveSettingsDebounced, eventSource, event_types } from '/script.js';
 
 const extName = "Explorer-NFL";
 
-// 初始化扩展持久化存储
 if (!extension_settings[extName]) {
     extension_settings[extName] = {
         entryMode: 'both',
@@ -21,13 +14,13 @@ if (!extension_settings[extName]) {
     };
 }
 const settings = extension_settings[extName];
+
 if (!settings.worldCategories) settings.worldCategories = ['日常', '战斗', '重要设定'];
 if (!settings.presetsCategories) settings.presetsCategories = ['常用预设', '破限', '测试'];
 if (!settings.worldMap) settings.worldMap = {};
 if (!settings.presetsMap) settings.presetsMap = {};
 if (!settings.recycleBin) settings.recycleBin = [];
 
-// 内联 SVG 图标库
 const SVG = {
     manage: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path><line x1="12" y1="11" x2="12" y2="17"></line><line x1="9" y1="14" x2="15" y2="14"></line></svg>`,
     book: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>`,
@@ -42,6 +35,7 @@ let currentTab = 'world';
 let currentFilterCat = 'all'; 
 let selectedItemNames = new Set();
 
+// 已经完全清除了错误的 \vert{}\vert{}，恢复标准 ||
 const scanResources = () => {
     const worlds = new Set(Object.keys(settings.worldMap));
     const presets = new Set(Object.keys(settings.presetsMap));
@@ -242,7 +236,7 @@ const mountUIRoot = () => {
             targetList.push(val);
             saveSettingsDebounced();
             renderModalUI();
-            if (typeof toastr !== 'undefined') toastr.success(`已添加分类: ${val}`);
+            toastr.success(`已添加分类: ${val}`);
         }
     });
 
@@ -260,7 +254,7 @@ const mountUIRoot = () => {
             if (currentFilterCat === cat) currentFilterCat = 'all';
             saveSettingsDebounced();
             renderModalUI();
-            if (typeof toastr !== 'undefined') toastr.info(`已移除分类【${cat}】`);
+            toastr.info(`已移除分类【${cat}】`);
         }
     });
 
@@ -281,19 +275,19 @@ const mountUIRoot = () => {
 
     $(document).off("click.stAmBatchMove").on("click.stAmBatchMove", "#st-am-batch-move-btn", function(e) {
         e.preventDefault(); e.stopPropagation();
-        if (selectedItemNames.size === 0) return typeof toastr !== 'undefined' ? toastr.warning('请先勾选需要移动的项目') : null;
+        if (selectedItemNames.size === 0) return toastr.warning('请先勾选需要移动的项目');
         const targetCat = $("#st-am-batch-move-sel").val();
         const targetMap = currentTab === 'world' ? settings.worldMap : settings.presetsMap;
         selectedItemNames.forEach(name => { targetMap[name] = targetCat; });
         selectedItemNames.clear();
         saveSettingsDebounced();
         renderModalUI();
-        if (typeof toastr !== 'undefined') toastr.success('已完成批量移动！');
+        toastr.success('已完成批量移动！');
     });
 
     $(document).off("click.stAmBatchDel").on("click.stAmBatchDel", "#st-am-batch-del-btn", function(e) {
         e.preventDefault(); e.stopPropagation();
-        if (selectedItemNames.size === 0) return typeof toastr !== 'undefined' ? toastr.warning('请先勾选要删除的项目') : null;
+        if (selectedItemNames.size === 0) return toastr.warning('请先勾选要删除的项目');
         const targetMap = currentTab === 'world' ? settings.worldMap : settings.presetsMap;
         selectedItemNames.forEach(name => {
             settings.recycleBin.push({ type: currentTab, name: name, oldCat: targetMap[name] || '' });
@@ -301,7 +295,7 @@ const mountUIRoot = () => {
         selectedItemNames.clear();
         saveSettingsDebounced();
         renderModalUI();
-        if (typeof toastr !== 'undefined') toastr.warning('已移入回收站');
+        toastr.warning('已移入回收站');
     });
 
     $(document).off("click.stAmRestore").on("click.stAmRestore", ".st-am-restore-btn", function(e) {
@@ -313,7 +307,7 @@ const mountUIRoot = () => {
             targetMap[item.name] = item.oldCat || '';
             saveSettingsDebounced();
             renderModalUI();
-            if (typeof toastr !== 'undefined') toastr.success(`已还原: ${item.name}`);
+            toastr.success(`已还原: ${item.name}`);
         }
     });
 
@@ -323,7 +317,7 @@ const mountUIRoot = () => {
             settings.recycleBin = [];
             saveSettingsDebounced();
             renderModalUI();
-            if (typeof toastr !== 'undefined') toastr.error('回收站已彻底清空');
+            toastr.error('回收站已彻底清空');
         }
     });
 
@@ -331,7 +325,7 @@ const mountUIRoot = () => {
         e.preventDefault(); e.stopPropagation();
         scanResources();
         renderModalUI();
-        if (typeof toastr !== 'undefined') toastr.info('扫描完成！');
+        toastr.info('扫描完成！');
     });
 };
 
@@ -345,6 +339,7 @@ const openManagerModal = (targetTab = 'world') => {
 
 const injectButtons = () => {
     const mode = settings.entryMode || 'both';
+
     if (mode === 'native' || mode === 'both') {
         const presetEl = $('#openai_preset, #chat_completion_preset, #settings_preset').filter(':visible').first();
         const targetEl = presetEl.length ? presetEl : $('#openai_preset, #chat_completion_preset, #settings_preset').first();
@@ -355,7 +350,9 @@ const injectButtons = () => {
                 </div>
             `);
         }
-    } else { $('#st-am-btn-preset').remove(); }
+    } else {
+        $('#st-am-btn-preset').remove();
+    }
 
     if (mode === 'native' || mode === 'both') {
         const worldBox = $('#world_info');
@@ -366,13 +363,16 @@ const injectButtons = () => {
                 </div>
             `);
         }
-    } else { $('#st-am-btn-world').remove(); }
+    } else {
+        $('#st-am-btn-world').remove();
+    }
 
     if (mode === 'magic' || mode === 'both') {
         const targetItem = $('div, span, a, li').filter(function() {
             const txt = $(this).text().trim();
             return txt === '变量管理器' || txt === '打开数据库';
         }).first();
+
         if (targetItem.length) {
             const rowContainer = targetItem.closest('div, li');
             const menuList = rowContainer.parent();
@@ -384,10 +384,13 @@ const injectButtons = () => {
                 `);
             }
         }
-    } else { $('#st-am-btn-magic').remove(); }
+    } else {
+        $('#st-am-btn-magic').remove();
+    }
 };
 
-jQuery(() => {
+// 【核心修复】：完全对标旧插件的稳定加载方式
+jQuery(async () => {
     mountUIRoot();
 
     $(document).off("click.stAmBtn").on("click.stAmBtn", "#st-am-btn-preset", function(e) {
@@ -408,68 +411,42 @@ jQuery(() => {
 
     setInterval(injectButtons, 500);
 
-    const safeHtmlString = `
-    <div id="st-am-extension-settings" class="aps-settings-container">
-        <div class="inline-drawer">
-            <div class="inline-drawer-toggle inline-drawer-header" style="cursor: pointer;">
-                <b>Explorer-NFL-资源管理</b>
-                <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
-            </div>
-            <div class="inline-drawer-content" style="display: none; padding-top: 10px;">
-                <p style="margin: 6px 0;">选择管理面板的唤出入口：</p>
-                <div style="margin-bottom: 12px;">
-                    <select id="st-am-entry-mode" class="text_pole" style="width: 100%; box-sizing: border-box;">
-                        <option value="both">原生面板 与 魔法棒 同时显示</option>
-                        <option value="native">仅在 原生面板 显示</option>
-                        <option value="magic">仅在 魔法棒菜单 显示</option>
-                    </select>
-                </div>
-                <button id="st-am-test-open-btn" class="menu_button" style="width: 100%; margin-bottom: 8px; border-color: var(--SmartThemeQuoteColor); white-space: nowrap; display: flex; align-items: center; justify-content: center;">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
-                    立刻打开管理面板
-                </button>
-                <button id="st-am-save-btn" class="menu_button" style="width: 100%; white-space: nowrap;">保存设置</button>
-            </div>
-        </div>
-    </div>`;
+    // 完美复刻 Auto-Persona-Switch-NFL 的 $.get 加载机制
+    try {
+        const htmlFile = await $.get(`/scripts/extensions/third-party/${extName}/index.html`);
+        const timer = setInterval(() => {
+            if ($("#extensions_settings").length && !$("#st-am-extension-settings").length) {
+                $("#extensions_settings").append(htmlFile);
 
-    const htmlInjector = setInterval(() => {
-        const container = $("#extensions_settings");
-        if (container.length && !$("#st-am-extension-settings").length) {
-            
-            // 安全追加到列表最末尾，不干扰其他插件
-            container.append(safeHtmlString);
+                // 绑定抽屉展开折叠
+                $("#st-am-extension-settings .inline-drawer-toggle").off("click").on("click", function(e) {
+                    e.preventDefault();
+                    const icon = $(this).find(".inline-drawer-icon");
+                    const content = $(this).siblings(".inline-drawer-content");
+                    icon.toggleClass("down up");
+                    content.slideToggle(200);
+                });
 
-            // 成功提示探针：看到这句话就往下划到底
-            if (typeof toastr !== 'undefined') {
-                toastr.success("UI 注入成功！请滑动到扩展列表最底部查看。", "Explorer-NFL");
+                if (settings.entryMode) {
+                    $("#st-am-entry-mode").val(settings.entryMode);
+                }
+
+                $("#st-am-save-btn").css("white-space", "nowrap").off("click").on("click", (e) => { 
+                    e.preventDefault(); e.stopPropagation();
+                    settings.entryMode = $("#st-am-entry-mode").val();
+                    saveSettingsDebounced();
+                    toastr.success("设置已保存！"); 
+                });
+
+                $("#st-am-test-open-btn").off("click").on("click", (e) => {
+                    e.preventDefault(); e.stopPropagation();
+                    openManagerModal('world');
+                });
+
+                clearInterval(timer);
             }
-
-            $("#st-am-extension-settings .inline-drawer-toggle").off("click").on("click", function(e) {
-                e.preventDefault();
-                const icon = $(this).find(".inline-drawer-icon");
-                const content = $(this).siblings(".inline-drawer-content");
-                icon.toggleClass("down up");
-                content.slideToggle(200);
-            });
-
-            if (settings.entryMode) {
-                $("#st-am-entry-mode").val(settings.entryMode);
-            }
-
-            $("#st-am-save-btn").css("white-space", "nowrap").off("click").on("click", (e) => { 
-                e.preventDefault(); e.stopPropagation();
-                settings.entryMode = $("#st-am-entry-mode").val();
-                saveSettingsDebounced();
-                if (typeof toastr !== 'undefined') toastr.success("设置已保存！"); 
-            });
-
-            $("#st-am-test-open-btn").off("click").on("click", (e) => {
-                e.preventDefault(); e.stopPropagation();
-                openManagerModal('world');
-            });
-
-            clearInterval(htmlInjector);
-        }
-    }, 500);
+        }, 500);
+    } catch (err) {
+        console.error(`[${extName}] 侧边栏 HTML 加载失败，请检查路径:`, err);
+    }
 });
