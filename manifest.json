@@ -1,7 +1,7 @@
 {
   "display_name": "Explorer-NFL-资源管理",
-  "name": "st-advanced-manager",
-  "id": "st-advanced-manager",
+  "name": "Explorer-NFL",
+  "id": "Explorer-NFL",
   "version": "1.0.0",
   "type": "extension",
   "js": "index.js",
