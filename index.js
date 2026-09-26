@@ -438,11 +438,20 @@ jQuery(async () => {
         </div>
     </div>`;
 
-    // 守护循环挂载
+    // 【强制置顶版】：安全地插队到所有插件的最上方，绝不会影响别的插件功能
     const htmlInjector = setInterval(() => {
         const container = $("#extensions_settings");
+        
+        // 确保扩展面板存在，且我们还没注入过
         if (container.length && !$("#st-am-extension-settings").length) {
-            container.append(safeHtmlString);
+            
+            // 使用 prepend 强行放在第一位，一打开面板就能看到！
+            container.prepend(safeHtmlString);
+
+            // 临时探针：如果能弹出这行字，说明代码绝对运行了
+            if (typeof toastr !== 'undefined') {
+                toastr.success("UI已尝试置顶注入！请看扩展列表最上方。", "Explorer-NFL");
+            }
 
             // 绑定抽屉点击展开/折叠
             $("#st-am-extension-settings .inline-drawer-toggle").off("click").on("click", function(e) {
@@ -472,4 +481,3 @@ jQuery(async () => {
             clearInterval(htmlInjector);
         }
     }, 500);
-});
