@@ -16,7 +16,6 @@
     const ICON_MANAGE = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path><line x1="12" y1="11" x2="12" y2="17"></line><line x1="9" y1="14" x2="15" y2="14"></line></svg>`;
 
     const mountUIRoot = () => {
-        // 清理所有旧残留节点，杜绝任何历史 DOM 冲突
         $("#st-am-modal-wrapper, #st-am-root, #st-am-overlay").remove();
 
         const html = `
@@ -54,25 +53,70 @@
 
     const startUIInjection = () => {
         setInterval(() => {
-            if (settings.entryMode === 'native' || settings.entryMode === 'both') {
-                // 精准锚定探针验证存在的 #settings_preset 与 #context_presets
-                const presetTarget = $('#settings_preset, #context_presets').first();
-                if (presetTarget.length && !$('#st-am-btn-preset').length) {
-                    presetTarget.after(`<div id="st-am-btn-preset" class="menu_button st-am-native-btn" style="width:100%; margin:8px 0; box-sizing:border-box; display:flex; justify-content:center; align-items:center;">${ICON_MANAGE} 批量管理预设</div>`);
-                }
+            const mode = settings.entryMode || 'both';
 
-                const worldBox = $('#world_info');
-                if (worldBox.length && !$('#st-am-btn-world').length) {
-                    worldBox.prepend(`<div id="st-am-btn-world" class="menu_button st-am-native-btn" style="margin:8px 0; display:flex; justify-content:center; align-items:center;">${ICON_MANAGE} 批量管理世界书</div>`);
+            // 1. 预设面板：精准死锁对话补全预设下拉框 (#context_presets)
+            if (mode === 'native' || mode === 'both') {
+                const contextSelect = $('#context_presets');
+                if (contextSelect.length && !$('#st-am-btn-preset').length) {
+                    const rowContainer = contextSelect.closest('.preset_select_wrapper, .flex-container, div');
+                    rowContainer.after(`
+                        <div id="st-am-btn-preset" class="menu_button st-am-native-btn" style="width:100%; margin:8px 0; box-sizing:border-box; display:flex; justify-content:center; align-items:center;">
+                            ${ICON_MANAGE} 批量管理预设
+                        </div>
+                    `);
                 }
             } else {
-                $('#st-am-btn-world, #st-am-btn-preset').remove();
+                $('#st-am-btn-preset').remove();
             }
-        }, 1200);
 
-        $(document).off("click.stAmBtn").on("click.stAmBtn", ".st-am-native-btn", function(e) {
+            // 2. 世界书面板：容器内部深度查验，抗酒馆重绘
+            if (mode === 'native' || mode === 'both') {
+                const worldBox = $('#world_info');
+                if (worldBox.length && !worldBox.find('#st-am-btn-world').length) {
+                    $('#st-am-btn-world').remove();
+                    worldBox.prepend(`
+                        <div id="st-am-btn-world" class="menu_button st-am-native-btn" style="width:100%; margin:8px 0; box-sizing:border-box; display:flex; justify-content:center; align-items:center;">
+                            ${ICON_MANAGE} 批量管理世界书
+                        </div>
+                    `);
+                }
+            } else {
+                $('#st-am-btn-world').remove();
+            }
+
+            // 3. 魔法棒菜单：动态锚定“变量管理器”同级节点进行原生注入
+            if (mode === 'magic' || mode === 'both') {
+                const anchorText = $('div, span, a, li').filter(function() {
+                    const t = $(this).clone().children().remove().end().text().trim();
+                    return t === '变量管理器' || t === '提示词查看器' || t === '打开数据库';
+                }).first();
+
+                if (anchorText.length) {
+                    const sampleRow = anchorText.closest('div, li, a');
+                    const menuList = sampleRow.parent();
+                    if (menuList.length && !menuList.find('#st-am-btn-magic').length) {
+                        $('#st-am-btn-magic').remove();
+                        const newBtn = sampleRow.clone().empty();
+                        newBtn.attr('id', 'st-am-btn-magic');
+                        newBtn.removeClass('selected active');
+                        newBtn.css({ 'cursor': 'pointer', 'display': 'flex', 'align-items': 'center' });
+                        newBtn.html(`${ICON_MANAGE} <span>资源管理器</span>`);
+                        menuList.append(newBtn);
+                    }
+                }
+            } else {
+                $('#st-am-btn-magic').remove();
+            }
+        }, 1000);
+
+        // 统一唤出弹窗
+        $(document).off("click.stAmBtn").on("click.stAmBtn", "#st-am-btn-preset, #st-am-btn-world, #st-am-btn-magic", function(e) {
             e.preventDefault(); e.stopPropagation();
             $("#st-am-modal-wrapper").css("display", "flex");
+            // 点击魔法棒项时自动收起菜单
+            if ($(this).attr('id') === 'st-am-btn-magic') {$(this).closest('div[style*="position"], .popup, .dropdown').hide();
+            }
         });
     };
 
@@ -110,7 +154,7 @@
                         e.preventDefault(); e.stopPropagation();
                         const out = $("#st-am-diag-output");
                         out.show();
-                        out.val(`[环境核验通过]\n运行版本: v1.0.3\n预设锚点: ${$('#settings_preset, #context_presets').length}\n世界书锚点: ${$('#world_info').length}`);
+                        out.val(`[环境核验通过]\n运行版本: v1.0.4\n预设锚点: ${$('#context_presets').length}\n世界书锚点: ${$('#world_info').length}`);
                     });
 
                     clearInterval(timer);
