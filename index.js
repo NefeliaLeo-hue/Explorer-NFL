@@ -1,5 +1,11 @@
-import { getContext, extension_settings } from '/scripts/extensions.js';
-import { saveSettingsDebounced, eventSource, event_types } from '/script.js';
+// 【核心修复】：只导入用到的两个变量，彻底断绝 API 兼容性导致的静默崩溃！
+import { extension_settings } from '/scripts/extensions.js';
+import { saveSettingsDebounced } from '/script.js';
+
+// 终极探针：如果导入成功没报错，这行字必定出现
+if (typeof toastr !== 'undefined') {
+    toastr.info("【Explorer-NFL】模块导入成功！核心代码开始运行...", "系统提示");
+}
 
 const extName = "Explorer-NFL";
 
@@ -431,12 +437,12 @@ jQuery(() => {
         const container = $("#extensions_settings");
         if (container.length && !$("#st-am-extension-settings").length) {
             
-            // 安全追加到列表最末尾
+            // 安全追加到列表最末尾，不干扰其他插件
             container.append(safeHtmlString);
 
-            // 临时探针，提醒你滑到底部
+            // 成功提示探针：看到这句话就往下划到底
             if (typeof toastr !== 'undefined') {
-                toastr.success("Explorer-NFL 加载成功！请向下滑动到扩展列表的最底部查看。", "系统提示", {timeOut: 4000});
+                toastr.success("UI 注入成功！请滑动到扩展列表最底部查看。", "Explorer-NFL");
             }
 
             $("#st-am-extension-settings .inline-drawer-toggle").off("click").on("click", function(e) {
