@@ -1,7 +1,7 @@
 (function () {
     // 
     const FOLDER_NAME = 'Explorer-NFL'; 
-    const PLUGIN_ID = 'st-advanced-manager';
+    const PLUGIN_ID = 'Explorer-NFL';
     let settings = {};
 
     const ctx = SillyTavern.getContext?.();
