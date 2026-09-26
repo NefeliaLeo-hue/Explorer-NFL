@@ -2,7 +2,6 @@ import { getContext, extension_settings } from '/scripts/extensions.js';
 import { saveSettingsDebounced, eventSource, event_types } from '/script.js';
 
 const extName = "Explorer-NFL";
-
 if (!extension_settings[extName]) {
     extension_settings[extName] = {
         entryMode: 'both',
@@ -35,7 +34,6 @@ let currentTab = 'world';
 let currentFilterCat = 'all'; 
 let selectedItemNames = new Set();
 
-// 已经完全清除了错误的 \vert{}\vert{}，恢复标准 ||
 const scanResources = () => {
     const worlds = new Set(Object.keys(settings.worldMap));
     const presets = new Set(Object.keys(settings.presetsMap));
@@ -236,7 +234,7 @@ const mountUIRoot = () => {
             targetList.push(val);
             saveSettingsDebounced();
             renderModalUI();
-            toastr.success(`已添加分类: ${val}`);
+            if (typeof toastr !== 'undefined') toastr.success(`已添加分类: ${val}`);
         }
     });
 
@@ -254,7 +252,7 @@ const mountUIRoot = () => {
             if (currentFilterCat === cat) currentFilterCat = 'all';
             saveSettingsDebounced();
             renderModalUI();
-            toastr.info(`已移除分类【${cat}】`);
+            if (typeof toastr !== 'undefined') toastr.info(`已移除分类【${cat}】`);
         }
     });
 
@@ -275,19 +273,19 @@ const mountUIRoot = () => {
 
     $(document).off("click.stAmBatchMove").on("click.stAmBatchMove", "#st-am-batch-move-btn", function(e) {
         e.preventDefault(); e.stopPropagation();
-        if (selectedItemNames.size === 0) return toastr.warning('请先勾选需要移动的项目');
+        if (selectedItemNames.size === 0) return typeof toastr !== 'undefined' ? toastr.warning('请先勾选需要移动的项目') : null;
         const targetCat = $("#st-am-batch-move-sel").val();
         const targetMap = currentTab === 'world' ? settings.worldMap : settings.presetsMap;
         selectedItemNames.forEach(name => { targetMap[name] = targetCat; });
         selectedItemNames.clear();
         saveSettingsDebounced();
         renderModalUI();
-        toastr.success('已完成批量移动！');
+        if (typeof toastr !== 'undefined') toastr.success('已完成批量移动！');
     });
 
     $(document).off("click.stAmBatchDel").on("click.stAmBatchDel", "#st-am-batch-del-btn", function(e) {
         e.preventDefault(); e.stopPropagation();
-        if (selectedItemNames.size === 0) return toastr.warning('请先勾选要删除的项目');
+        if (selectedItemNames.size === 0) return typeof toastr !== 'undefined' ? toastr.warning('请先勾选要删除的项目') : null;
         const targetMap = currentTab === 'world' ? settings.worldMap : settings.presetsMap;
         selectedItemNames.forEach(name => {
             settings.recycleBin.push({ type: currentTab, name: name, oldCat: targetMap[name] || '' });
@@ -295,7 +293,7 @@ const mountUIRoot = () => {
         selectedItemNames.clear();
         saveSettingsDebounced();
         renderModalUI();
-        toastr.warning('已移入回收站');
+        if (typeof toastr !== 'undefined') toastr.warning('已移入回收站');
     });
 
     $(document).off("click.stAmRestore").on("click.stAmRestore", ".st-am-restore-btn", function(e) {
@@ -307,7 +305,7 @@ const mountUIRoot = () => {
             targetMap[item.name] = item.oldCat || '';
             saveSettingsDebounced();
             renderModalUI();
-            toastr.success(`已还原: ${item.name}`);
+            if (typeof toastr !== 'undefined') toastr.success(`已还原: ${item.name}`);
         }
     });
 
@@ -317,7 +315,7 @@ const mountUIRoot = () => {
             settings.recycleBin = [];
             saveSettingsDebounced();
             renderModalUI();
-            toastr.error('回收站已彻底清空');
+            if (typeof toastr !== 'undefined') toastr.error('回收站已彻底清空');
         }
     });
 
@@ -325,7 +323,7 @@ const mountUIRoot = () => {
         e.preventDefault(); e.stopPropagation();
         scanResources();
         renderModalUI();
-        toastr.info('扫描完成！');
+        if (typeof toastr !== 'undefined') toastr.info('扫描完成！');
     });
 };
 
@@ -339,7 +337,6 @@ const openManagerModal = (targetTab = 'world') => {
 
 const injectButtons = () => {
     const mode = settings.entryMode || 'both';
-
     if (mode === 'native' || mode === 'both') {
         const presetEl = $('#openai_preset, #chat_completion_preset, #settings_preset').filter(':visible').first();
         const targetEl = presetEl.length ? presetEl : $('#openai_preset, #chat_completion_preset, #settings_preset').first();
@@ -350,9 +347,7 @@ const injectButtons = () => {
                 </div>
             `);
         }
-    } else {
-        $('#st-am-btn-preset').remove();
-    }
+    } else { $('#st-am-btn-preset').remove(); }
 
     if (mode === 'native' || mode === 'both') {
         const worldBox = $('#world_info');
@@ -363,16 +358,13 @@ const injectButtons = () => {
                 </div>
             `);
         }
-    } else {
-        $('#st-am-btn-world').remove();
-    }
+    } else { $('#st-am-btn-world').remove(); }
 
     if (mode === 'magic' || mode === 'both') {
         const targetItem = $('div, span, a, li').filter(function() {
             const txt = $(this).text().trim();
             return txt === '变量管理器' || txt === '打开数据库';
         }).first();
-
         if (targetItem.length) {
             const rowContainer = targetItem.closest('div, li');
             const menuList = rowContainer.parent();
@@ -384,12 +376,10 @@ const injectButtons = () => {
                 `);
             }
         }
-    } else {
-        $('#st-am-btn-magic').remove();
-    }
+    } else { $('#st-am-btn-magic').remove(); }
 };
 
-// 【核心修复】：完全对标旧插件的稳定加载方式
+// 【绝对复刻版】：完全使用与 Auto-Persona-Switch-NFL 相同的 $.get 加载机制
 jQuery(async () => {
     mountUIRoot();
 
@@ -411,14 +401,12 @@ jQuery(async () => {
 
     setInterval(injectButtons, 500);
 
-    // 完美复刻 Auto-Persona-Switch-NFL 的 $.get 加载机制
     try {
         const htmlFile = await $.get(`/scripts/extensions/third-party/${extName}/index.html`);
         const timer = setInterval(() => {
             if ($("#extensions_settings").length && !$("#st-am-extension-settings").length) {
                 $("#extensions_settings").append(htmlFile);
 
-                // 绑定抽屉展开折叠
                 $("#st-am-extension-settings .inline-drawer-toggle").off("click").on("click", function(e) {
                     e.preventDefault();
                     const icon = $(this).find(".inline-drawer-icon");
@@ -447,6 +435,6 @@ jQuery(async () => {
             }
         }, 500);
     } catch (err) {
-        console.error(`[${extName}] 侧边栏 HTML 加载失败，请检查路径:`, err);
+        console.error(`[${extName}] 侧边栏加载失败:`, err);
     }
 });
