@@ -21,11 +21,11 @@
             <div id="st-am-overlay"></div>
             <div id="st-am-root" class="text_pole">
                 <div class="st-am-header">
-                    <h3 style="margin:0; font-size:1.1em;">📦 高级资源管理器</h3>
+                    <h3 style="margin:0; font-size:1.1em; color:#000 !important;">📦 高级资源管理器</h3>
                     <div class="menu_button st-am-close-btn" style="margin:0; min-width:60px;">关闭</div>
                 </div>
-                <div class="st-am-content">
-                    <p>✅ 面板已成功挂载！(如果你看到这段文字，说明 CSS 已生效，白屏危机解除)</p>
+                <div class="st-am-content" style="color:#000 !important;">
+                    <p style="color:#000 !important; font-weight:bold;">✅ 面板核心节点测试：如果你能看到这段文字，说明文本渲染通道正常。</p>
                 </div>
             </div>
         `;
@@ -39,7 +39,6 @@
 
     const startUIInjection = () => {
         setInterval(() => {
-            // A. 原生面板按钮
             if (settings.entryMode === 'native' || settings.entryMode === 'both') {
                 const worldHeader = $('.world_info_header');
                 if (worldHeader.length && !$('#st-am-btn-world').length) {
@@ -53,7 +52,6 @@
                 $('#st-am-btn-world, #st-am-btn-preset').remove();
             }
 
-            // B. 魔法棒菜单按钮 (查找ID)
             if (settings.entryMode === 'magic' || settings.entryMode === 'both') {
                 const magicMenu = $('#extensions_menu');
                 if (magicMenu.length && !$('#st-am-btn-magic').length) {
@@ -72,9 +70,83 @@
         });
     };
 
+    // 运行全量诊断逻辑
+    const runDiagnostics = () => {
+        const report = [];
+        report.push(`=== 运行环境探针报告 ===`);
+        report.push(`时间: ${new Date().toLocaleTimeString()}`);
+        report.push(`jQuery: ${typeof window.jQuery !== 'undefined'} | SillyTavern: ${typeof window.SillyTavern !== 'undefined'}`);
+
+        // 1. 样式表探测
+        const cssLoaded = Array.from(document.styleSheets).some(s => (s.href || '').includes('Explorer-NFL') || (s.href || '').includes('style.css'));
+        report.push(`\n[样式状态]`);
+        report.push(`style.css 加载识别: ${cssLoaded ? '成功' : '未检测到独立样式表'}`);
+
+        // 2. 根弹窗状态与计算样式
+        const root = document.getElementById('st-am-root');
+        report.push(`\n[弹窗容器 (#st-am-root)]`);
+        if (!root) {
+            report.push(`状态: DOM 中不存在该节点`);
+        } else {
+            const cs = window.getComputedStyle(root);
+            report.push(`子节点数量: ${root.children.length}`);
+            report.push(`HTML 字节长: ${root.innerHTML.length}`);
+            report.push(`背景色 (bg): ${cs.backgroundColor}`);
+            report.push(`字体色 (color): ${cs.color}`);
+            report.push(`显示状态 (display): ${cs.display}`);
+            report.push(`层级 (z-index): ${cs.zIndex}`);
+        }
+
+        // 3. 预设区域候选选择器探测
+        report.push(`\n[预设面板选择器命中]`);
+        const presetCandidates = [
+            '#context_presets',
+            '#context_presets_controls',
+            '#settings_preset',
+            '#generation_preset',
+            '#main_api_settings',
+            '.preset_select',
+            '#preset_select'
+        ];
+        presetCandidates.forEach(sel => {
+            report.push(`${sel}: ${$(sel).length} 处`);
+        });
+
+        // 4. 世界书区域候选选择器探测
+        report.push(`\n[世界书面板选择器命中]`);
+        const worldCandidates = [
+            '.world_info_header',
+            '#world_info',
+            '#world_info_panel',
+            '#world_info_settings',
+            '#world_info_select',
+            '#rm_world_info_block'
+        ];
+        worldCandidates.forEach(sel => {
+            report.push(`${sel}: ${$(sel).length} 处`);
+        });
+
+        // 5. 魔法棒菜单候选选择器探测
+        report.push(`\n[魔法棒菜单选择器命中]`);
+        const magicCandidates = [
+            '#extensions_menu',
+            '#chat_plus_menu',
+            '#magic_menu',
+            '#magic_wand_button',
+            '.magic_btn',
+            '#send_textarea_buttons'
+        ];
+        magicCandidates.forEach(sel => {
+            report.push(`${sel}: ${$(sel).length} 处`);
+        });
+
+        return report.join('\n');
+    };
+
     jQuery(async () => {
         mountUIRoot();
         startUIInjection();
+
         try {
             let htmlFile = '';
             try {
@@ -82,21 +154,35 @@
             } catch (e1) {
                 htmlFile = await $.get(`/scripts/extensions/local/${FOLDER_NAME}/index.html`);
             }
+
             const timer = setInterval(() => {
                 if ($("#extensions_settings").length && !$("#st-am-extension-settings").length) {
                     $("#extensions_settings").append(htmlFile);
+
                     if (settings.entryMode) $("#st-am-entry-mode").val(settings.entryMode);
+
                     $("#st-am-save-btn").off("click").on("click", (e) => { 
                         e.preventDefault(); e.stopPropagation();
                         settings.entryMode = $("#st-am-entry-mode").val();
                         if (typeof window.saveSettingsDebounced === 'function') window.saveSettingsDebounced();
-                        if (typeof toastr !== 'undefined') toastr.success("入口设置已保存！"); 
+                        if (typeof toastr !== 'undefined') toastr.success("设置已保存！"); 
                     });
+
                     $("#st-am-test-open-btn").off("click").on("click", (e) => {
                         e.preventDefault(); e.stopPropagation();
                         $("#st-am-overlay").show();
                         $("#st-am-root").css("display", "flex");
                     });
+
+                    // 绑定诊断探针点击事件
+                    $("#st-am-diag-btn").off("click").on("click", (e) => {
+                        e.preventDefault(); e.stopPropagation();
+                        const out = $("#st-am-diag-output");
+                        out.show();
+                        out.val(runDiagnostics());
+                        out[0].scrollIntoView({ behavior: 'smooth' });
+                    });
+
                     clearInterval(timer);
                 }
             }, 500);
