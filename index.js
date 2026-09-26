@@ -69,48 +69,59 @@ const startUIInjection = () => {
     });
 };
 
-// --- jQuery 启动器 (照搬你之前的逻辑) ---
+// --- jQuery 启动器 (防阻断优化版) ---
 jQuery(async () => {
-    try {
-        // 读取 HTML。这里用了 FOLDER_NAME，请确保它与你实际文件夹名字一致
-        const htmlPath = `/scripts/extensions/third-party/${FOLDER_NAME}/index.html`;
-        const htmlFile = await $.get(htmlPath);
-        
-        // 挂载底座面板
-        mountUIRoot();
-        startUIInjection();
+    // 1. 优先执行！先把不需要依赖 HTML 文件的面板和图1图2的小按钮挂载上去。
+    // 这样就算侧边栏加载失败，原生的按钮和面板依然能正常工作！
+    mountUIRoot();
+    startUIInjection();
 
-        // 轮询等待扩展面板加载
+    try {
+        // 注意：这里一定要和你手机里的文件夹名字一模一样！
+        const FOLDER_NAME = 'st-advanced-manager'; 
+        
+        // 2. 双路径尝试机制：先找 third-party，找不到再去 local 找，防呆拉满
+        let htmlFile = '';
+        try {
+            htmlFile = await $.get(`/scripts/extensions/third-party/${FOLDER_NAME}/index.html`);
+        } catch (e1) {
+            htmlFile = await $.get(`/scripts/extensions/local/${FOLDER_NAME}/index.html`);
+        }
+
+        // 3. 轮询等待酒馆的扩展设置页面准备好
         const timer = setInterval(() => {
             if ($("#extensions_settings").length && !$("#st-am-extension-settings").length) {
                 $("#extensions_settings").append(htmlFile);
                 
-                // 读取旧设置
+                // 恢复之前的开关设置
                 if (settings.entryMode) {
                     $("#st-am-entry-mode").val(settings.entryMode);
                 }
 
                 // 绑定保存按钮
-                $("#st-am-save-btn").on("click", (e) => { 
+                $("#st-am-save-btn").off("click").on("click", (e) => { 
                     e.preventDefault();
+                    e.stopPropagation();
                     settings.entryMode = $("#st-am-entry-mode").val();
                     saveSettingsDebounced(); 
                     if (typeof toastr !== 'undefined') toastr.success("管理器设置已保存！"); 
                 });
 
-                // 绑定测试打开按钮
-                $("#st-am-test-open-btn").on("click", (e) => {
+                // 绑定兜底的测试打开按钮
+                $("#st-am-test-open-btn").off("click").on("click", (e) => {
                     e.preventDefault();
+                    e.stopPropagation();
                     $("#st-am-overlay").show();
                     $("#st-am-root").css("display", "flex");
                 });
                 
                 clearInterval(timer);
-                console.log(`[${PLUGIN_ID}] 初始化完成。`);
+                console.log(`[${PLUGIN_ID}] 侧边栏初始化完成。`);
             }
         }, 500);
 
     } catch (err) {
-        console.error(`[${PLUGIN_ID}] 启动失败，可能是文件夹名字与 ${FOLDER_NAME} 不一致，或者不支持此加载方式。`, err);
+        // 如果 HTML 实在找不到，只会在控制台静默报错，绝对不会拖累上面的主面板逻辑
+        console.warn(`[${PLUGIN_ID}] 侧边栏加载失败，请检查文件夹是否名为 ${FOLDER_NAME}`, err);
     }
 });
