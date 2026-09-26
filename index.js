@@ -2,7 +2,7 @@
     const FOLDER_NAME = 'Explorer-NFL'; 
     const PLUGIN_ID = 'Explorer-NFL';
 
-    // 1. 绝对安全的顶层存储上下文初始化，杜绝任何未定义崩溃
+    // 1. 安全初始化存储通道
     window.extension_settings = window.extension_settings || {};
     let extSettings = window.extension_settings;
     try {
@@ -27,7 +27,6 @@
     if (!settings.presetsMap) settings.presetsMap = {};
     if (!settings.recycleBin) settings.recycleBin = [];
 
-    // 静默保存
     const savePluginSettings = () => {
         extSettings[PLUGIN_ID] = settings;
         if (typeof window.saveSettingsDebounced === 'function') {
@@ -35,7 +34,6 @@
         }
     };
 
-    // 内联 SVG
     const SVG = {
         manage: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path><line x1="12" y1="11" x2="12" y2="17"></line><line x1="9" y1="14" x2="15" y2="14"></line></svg>`,
         book: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>`,
@@ -46,16 +44,16 @@
         restore: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px;"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>`
     };
 
-    // 运行态变量
     let currentTab = 'world';     
     let currentFilterCat = 'all'; 
     let selectedItemNames = new Set();
 
-    // 资源扫描引擎
+    // 扫描资源列表
     const scanResources = () => {
         const worlds = new Set(Object.keys(settings.worldMap));
         const presets = new Set(Object.keys(settings.presetsMap));
 
+        // 扫描世界书
         $('#world_info select option, select#world_info_select option, select#world_editor_select option').each(function() {
             const val = $(this).val() \vert{}\vert{}$(this).text();
             const clean = String(val).trim();
@@ -63,7 +61,8 @@
         });
         if (Array.isArray(window.world_names)) window.world_names.forEach(w => worlds.add(w));
 
-        $('#settings_preset option, #context_presets option, select[id*="preset"] option').each(function() {
+        // 精准覆盖对话补全预设与常规预设
+        $('#openai_preset option, #chat_completion_preset option, #settings_preset option, select[id*="preset"] option').each(function() {
             const val = $(this).val() \vert{}\vert{}$(this).text();
             const clean = String(val).trim();
             if (clean && clean !== '---' && clean !== 'None') presets.add(clean);
@@ -74,7 +73,7 @@
         savePluginSettings();
     };
 
-    // 渲染模态框主体内容
+    // 渲染模态框主体
     const renderModalUI = () => {
         const body = $('#st-am-content-body');
         if (!body.length) return;
@@ -84,7 +83,6 @@
         const isPreset = currentTab === 'preset';
         const isRecycle = currentTab === 'recycle';
 
-        // 导航标签栏
         const navHtml = `
             <div style="display:flex; gap:8px; margin-bottom:12px; border-bottom:1px solid var(--SmartThemeBorderColor, #ccc); padding-bottom:8px;">
                 <button class="menu_button st-am-tab-btn" data-tab="world" style="flex:1; margin:0; display:flex; align-items:center; justify-content:center; ${isWorld ? 'border-color:var(--SmartThemeQuoteColor); font-weight:bold; background:rgba(128,128,128,0.2);' : ''}">${SVG.book} 世界书分类</button>
@@ -94,11 +92,10 @@
         `;
         body.append(navHtml);
 
-        // 回收站视图
         if (isRecycle) {
             let recycleListHtml = '';
             if (settings.recycleBin.length === 0) {
-                recycleListHtml = `<div style="text-align:center; padding:35px 0; opacity:0.6;">回收站空空如也</div>`;
+                recycleListHtml = `<div style="text-align:center; padding:35px 0; opacity:0.6;">回收站暂无项目</div>`;
             } else {
                 settings.recycleBin.forEach((item, idx) => {
                     const typeLabel = item.type === 'world' ? '世界书' : '预设';
@@ -117,7 +114,7 @@
 
             body.append(`
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                    <span style="font-size:0.9em; opacity:0.85;">已丢弃的项目清单：</span>
+                    <span style="font-size:0.9em; opacity:0.85;">已丢弃的项目列表：</span>
                     <button id="st-am-empty-recycle-btn" class="menu_button danger" style="margin:0; padding:4px 10px; font-size:0.8em; ${settings.recycleBin.length === 0 ? 'display:none;' : ''}">彻底清空回收站</button>
                 </div>
                 <div style="max-height:50vh; overflow-y:auto;">${recycleListHtml}</div>
@@ -125,7 +122,6 @@
             return;
         }
 
-        // 世界书与预设管理视图
         const categoriesList = isWorld ? settings.worldCategoriesList : settings.presetsCategoriesList;
         const itemMap = isWorld ? settings.worldMap : settings.presetsMap;
 
@@ -144,7 +140,7 @@
             catBadgesHtml += `
                 <div style="display:inline-flex; align-items:center; border:1px solid ${isCur ? 'var(--SmartThemeQuoteColor)' : 'var(--SmartThemeBorderColor)'}; border-radius:6px; overflow:hidden;">
                     <button class="st-am-filter-cat" data-cat="${cat}" style="background:transparent; border:none; color:inherit; padding:3px 8px; font-size:0.8em; cursor:pointer;">${cat} (${count})</button>
-                    <span class="st-am-del-cat" data-cat="${cat}" style="cursor:pointer; padding:3px 6px; font-size:0.75em; opacity:0.6; border-left:1px solid var(--SmartThemeBorderColor);" title="删除该分类">✕</span>
+                    <span class="st-am-del-cat" data-cat="${cat}" style="cursor:pointer; padding:3px 6px; font-size:0.75em; opacity:0.6; border-left:1px solid var(--SmartThemeBorderColor);" title="删除分类">✕</span>
                 </div>
             `;
         });
@@ -206,7 +202,6 @@
         body.append(`<div style="max-height:48vh; overflow-y:auto;">${itemsListHtml}</div>`);
     };
 
-    // 挂载主模态框
     const mountUIRoot = () => {
         $("#st-am-modal-wrapper").remove();
 
@@ -235,7 +230,7 @@
             $("#st-am-modal-wrapper").css("display", "none");
         });
 
-        // 标签切换
+        // 标签页切换
         $(document).off("click.stAmTab").on("click.stAmTab", ".st-am-tab-btn", function(e) {
             e.preventDefault(); e.stopPropagation();
             currentTab = $(this).data("tab");
@@ -244,7 +239,7 @@
             renderModalUI();
         });
 
-        // 分类切换
+        // 分类筛选
         $(document).off("click.stAmFilter").on("click.stAmFilter", ".st-am-filter-cat", function(e) {
             e.preventDefault(); e.stopPropagation();
             currentFilterCat = String($(this).data("cat"));
@@ -288,14 +283,13 @@
             }
         });
 
-        // 单项勾选
+        // 复选框逻辑
         $(document).off("change.stAmItemCb").on("change.stAmItemCb", ".st-am-item-cb", function() {
             const name = String($(this).data("name"));
             if ($(this).is(':checked')) selectedItemNames.add(name);
             else selectedItemNames.delete(name);
         });
 
-        // 全选 / 反选
         $(document).off("change.stAmSelectAll").on("change.stAmSelectAll", "#st-am-select-all", function() {
             const isChecked = $(this).is(':checked');
             $('.st-am-item-cb').each(function() {$(this).prop('checked', isChecked);
@@ -356,7 +350,7 @@
             }
         });
 
-        // 彻底清空回收站
+        // 清空回收站
         $(document).off("click.stAmEmptyRecycle").on("click.stAmEmptyRecycle", "#st-am-empty-recycle-btn", function(e) {
             e.preventDefault(); e.stopPropagation();
             if (confirm("⚠️ 确定彻底清空回收站吗？此操作无法恢复！")) {
@@ -367,7 +361,7 @@
             }
         });
 
-        // 扫描
+        // 手动刷新扫描
         $(document).off("click.stAmRescan").on("click.stAmRescan", "#st-am-rescan-btn", function(e) {
             e.preventDefault(); e.stopPropagation();
             scanResources();
@@ -376,7 +370,6 @@
         });
     };
 
-    // 唤起面板
     const openManagerModal = (targetTab = 'world') => {
         currentTab = targetTab;
         selectedItemNames.clear();
@@ -385,19 +378,21 @@
         $("#st-am-modal-wrapper").css("display", "flex");
     };
 
-    // 按钮守护注入
+    // 守护注入：精准支持对话补全预设 (#openai_preset) 与世界书常驻自愈
     const startUIInjection = () => {
         setInterval(() => {
             const mode = settings.entryMode || 'both';
 
-            // 1. 对话补全预设面板：精准死锁 #settings_preset 及其父行容器
+            // 1. 预设面板注入：精准捕获 #openai_preset / #chat_completion_preset / #settings_preset
             if (mode === 'native' || mode === 'both') {
-                const presetSelect = $('#settings_preset');
-                if (presetSelect.length) {
-                    const parentRow = presetSelect.closest('.flex-container, div');
-                    if (parentRow.length && !parentRow.parent().find('#st-am-btn-preset').length) {
+                const presetSelect = $('#openai_preset, #chat_completion_preset, #settings_preset').filter(':visible').first();
+                const targetEl = presetSelect.length ? presetSelect : $('#openai_preset, #chat_completion_preset, #settings_preset').first();
+
+                if (targetEl.length) {
+                    const rowContainer = targetEl.closest('.flex-container, div');
+                    if (rowContainer.length && !rowContainer.parent().find('#st-am-btn-preset').length) {
                         $('#st-am-btn-preset').remove();
-                        parentRow.after(`
+                        rowContainer.after(`
                             <div id="st-am-btn-preset" class="menu_button st-am-native-btn" style="width:100%; margin:8px 0; box-sizing:border-box; display:flex; justify-content:center; align-items:center;">
                                 ${SVG.sliders} 批量管理预设
                             </div>
@@ -408,11 +403,11 @@
                 $('#st-am-btn-preset').remove();
             }
 
-            // 2. 世界书面板：以容器存在为依据持续挂载，抗酒馆闭合与失焦重绘
+            // 2. 世界书面板注入：自愈检测，防关闭失焦重绘
             if (mode === 'native' || mode === 'both') {
                 const worldBox = $('#world_info');
-                if (worldBox.length && !worldBox.find('#st-am-btn-world').length) {
-                    $('#st-am-btn-world').remove();
+                const btnWorld = document.getElementById('st-am-btn-world');
+                if (worldBox.length && (!btnWorld || !document.body.contains(btnWorld) || !$(btnWorld).is(':visible'))) {$('#st-am-btn-world').remove();
                     worldBox.prepend(`
                         <div id="st-am-btn-world" class="menu_button st-am-native-btn" style="width:100%; margin:8px 0; box-sizing:border-box; display:flex; justify-content:center; align-items:center;">
                             ${SVG.book} 批量管理世界书
@@ -447,7 +442,6 @@
             }
         }, 800);
 
-        // 点击委托
         $(document).off("click.stAmBtn").on("click.stAmBtn", "#st-am-btn-preset", function(e) {
             e.preventDefault(); e.stopPropagation();
             openManagerModal('preset');
@@ -465,82 +459,47 @@
         });
     };
 
-    // 内置侧边栏模板兜底，即使文件丢失也 100% 正常显示
-    const DRAWER_FALLBACK_HTML = `
-    <div id="st-am-extension-settings" class="aps-settings-container">
-        <div class="inline-drawer">
-            <div class="inline-drawer-toggle inline-drawer-header">
-                <b>📦 Explorer-NFL-资源管理</b>
-                <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
-            </div>
-            <div class="inline-drawer-content">
-                <p style="margin: 6px 0;">选择管理面板的唤出入口：</p>
-                <div style="margin-bottom: 12px;">
-                    <select id="st-am-entry-mode" class="text_pole" style="width: 100%; box-sizing: border-box;">
-                        <option value="both">原生面板 与 魔法棒 同时显示</option>
-                        <option value="native">仅在 原生面板(图1/图2) 显示</option>
-                        <option value="magic">仅在 魔法棒菜单 显示</option>
-                    </select>
-                </div>
-                <button id="st-am-test-open-btn" class="menu_button" style="width: 100%; margin-bottom: 8px; border-color: var(--SmartThemeQuoteColor); white-space: nowrap; display: flex; align-items: center; justify-content: center;">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
-                    立刻打开管理面板
-                </button>
-                <button id="st-am-save-btn" class="menu_button" style="width: 100%; white-space: nowrap; margin-bottom: 10px;">保存设置</button>
-                <hr style="opacity: 0.2; margin: 8px 0;">
-                <button id="st-am-diag-btn" class="menu_button danger" style="width: 100%; white-space: nowrap; background: rgba(220, 53, 69, 0.2); border: 1px solid #dc3545;">🔍 运行状态诊断</button>
-                <textarea id="st-am-diag-output" class="text_pole" style="width: 100%; height: 110px; font-size: 0.75em; font-family: monospace; display: none; box-sizing: border-box; white-space: pre; margin-top: 8px;" readonly></textarea>
-            </div>
-        </div>
-    </div>`;
-
-    // 启动引导
+    // 启动引导：严格遵循旧插件的纯净 $.get 逻辑，绝不在对象上执行 .trim()
     jQuery(async () => {
         mountUIRoot();
         startUIInjection();
 
-        let htmlFile = DRAWER_FALLBACK_HTML;
         try {
-            const fetched = await $.get(`/scripts/extensions/third-party/${FOLDER_NAME}/index.html`);
-            if (fetched && fetched.trim()) htmlFile = fetched;
-        } catch (e1) {
-            try {
-                const fetchedLocal = await $.get(`/scripts/extensions/local/${FOLDER_NAME}/index.html`);
-                if (fetchedLocal && fetchedLocal.trim()) htmlFile = fetchedLocal;
-            } catch (e2) {}
-        }
+            const htmlFile = await $.get(`/scripts/extensions/third-party/${FOLDER_NAME}/index.html`);
+            const timer = setInterval(() => {
+                if ($("#extensions_settings").length && !$("#st-am-extension-settings").length) {
+                    $("#extensions_settings").append(htmlFile);
 
-        const timer = setInterval(() => {
-            if ($("#extensions_settings").length && !$("#st-am-extension-settings").length) {
-                $("#extensions_settings").append(htmlFile);
+                    if (settings.entryMode) {
+                        $("#st-am-entry-mode").val(settings.entryMode);
+                    } else {
+                        $("#st-am-entry-mode").val('both');
+                    }
 
-                if (settings.entryMode) {
-                    $("#st-am-entry-mode").val(settings.entryMode);
-                } else {
-                    $("#st-am-entry-mode").val('both');
+                    $("#st-am-save-btn").off("click").on("click", (e) => { 
+                        e.preventDefault(); e.stopPropagation();
+                        settings.entryMode = $("#st-am-entry-mode").val();
+                        savePluginSettings();
+                        if (typeof toastr !== 'undefined') toastr.success("设置已保存！"); 
+                    });
+
+                    $("#st-am-test-open-btn").off("click").on("click", (e) => {
+                        e.preventDefault(); e.stopPropagation();
+                        openManagerModal('world');
+                    });
+
+                    $("#st-am-diag-btn").off("click").on("click", (e) => {
+                        e.preventDefault(); e.stopPropagation();
+                        const out = $("#st-am-diag-output");
+                        out.show();
+                        out.val(`[版本校验: v1.0.8]\n入口模式: ${settings.entryMode}\n已记录世界书: ${Object.keys(settings.worldMap).length}\n已记录预设: ${Object.keys(settings.presetsMap).length}\n回收站存量: ${settings.recycleBin.length}`);
+                    });
+
+                    clearInterval(timer);
                 }
-
-                $("#st-am-save-btn").off("click").on("click", (e) => { 
-                    e.preventDefault(); e.stopPropagation();
-                    settings.entryMode = $("#st-am-entry-mode").val();
-                    savePluginSettings();
-                    if (typeof toastr !== 'undefined') toastr.success("设置已保存！"); 
-                });
-
-                $("#st-am-test-open-btn").off("click").on("click", (e) => {
-                    e.preventDefault(); e.stopPropagation();
-                    openManagerModal('world');
-                });
-
-                $("#st-am-diag-btn").off("click").on("click", (e) => {
-                    e.preventDefault(); e.stopPropagation();
-                    const out = $("#st-am-diag-output");
-                    out.show();
-                    out.val(`[版本校验: v1.0.7]\n当前入口配置: ${settings.entryMode}\n已记录世界书: ${Object.keys(settings.worldMap).length}\n已记录预设: ${Object.keys(settings.presetsMap).length}\n回收站存量: ${settings.recycleBin.length}`);
-                });
-
-                clearInterval(timer);
-            }
-        }, 500);
+            }, 500);
+        } catch (err) {
+            console.error(`[${PLUGIN_ID}] 侧边栏加载异常:`, err);
+        }
     });
 })();
