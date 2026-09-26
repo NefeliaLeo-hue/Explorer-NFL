@@ -16,9 +16,6 @@
 
 #st-am-root {
     position: relative !important;
-    top: auto !important;
-    left: auto !important;
-    transform: none !important;
     width: 100% !important;
     max-width: 600px !important;
     max-height: 85vh !important;
@@ -49,6 +46,6 @@
     background: rgba(128,128,128,0.3) !important; 
 }
 
-#st-am-save-btn, #st-am-test-open-btn, #st-am-diag-btn {
+#st-am-save-btn, #st-am-test-open-btn {
     white-space: nowrap !important;
 }
