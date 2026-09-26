@@ -1,45 +1,54 @@
-/* 注入在原生面板上的小按钮 */
-.st-am-native-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    margin-left: 5px;
-    cursor: pointer;
-    opacity: 0.8;
+/* 原生面板和魔法棒里的小按钮样式 */
+.st-am-native-btn { 
+    cursor: pointer; 
+    display: inline-flex; 
+    align-items: center; 
+    justify-content: center; 
+    padding: 6px 12px; 
+    margin: 4px; 
+    border-radius: 6px; 
+    background: rgba(128,128,128,0.15); 
+    color: var(--SmartThemeBodyColor, #333); 
+    border: 1px solid var(--SmartThemeBorderColor, #ccc); 
 }
-.st-am-native-btn:hover {
-    opacity: 1;
+.st-am-native-btn:hover { 
+    background: rgba(128,128,128,0.3); 
 }
-
-/* 独立的大管理面板容器 (复用酒馆 text_pole 风格) */
-#st-am-root {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 90vw;
-    max-width: 800px;
-    height: 85vh;
-    background-color: var(--SmartThemeBlurTintColor);
-    backdrop-filter: blur(var(--SmartThemeBlurStrength));
-    border: 1px solid var(--SmartThemeBorderColor);
-    border-radius: 10px;
-    z-index: 2000000; /* 绝对置顶，压过一切 */
-    display: none; /* 默认隐藏 */
-    flex-direction: column;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+.st-am-native-btn svg { 
+    width: 1.2em; 
+    height: 1.2em; 
+    stroke: currentColor; 
+    margin-right: 5px; 
 }
 
-/* 拦截底层的透明遮罩，防穿透 */
-#st-am-overlay {
-    position: fixed;
-    top: 0; left: 0; width: 100vw; height: 100vh;
-    background: rgba(0,0,0,0.3);
-    z-index: 1999999;
-    display: none;
+/* 黑色防穿透遮罩 */
+#st-am-overlay { 
+    position: fixed; 
+    top: 0; left: 0; 
+    width: 100vw; height: 100vh; 
+    background: rgba(0,0,0,0.5); 
+    z-index: 1999999; 
+    display: none; 
 }
 
-/* 确保按钮里的 SVG 跟随主题色 */
-#st-am-test-open-btn svg {
-    stroke: var(--SmartThemeBodyColor);
+/* 中央弹出的管理大面板（加入强制颜色保护，防白屏） */
+#st-am-root { 
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+    width: 90vw; max-width: 800px; height: 85vh; 
+    background-color: var(--SmartThemeBlurTintColor, #fff); 
+    color: var(--SmartThemeBodyColor, #000) !important; 
+    border: 1px solid var(--SmartThemeBorderColor, #ccc); 
+    border-radius: 10px; 
+    z-index: 2000000; 
+    display: none; flex-direction: column; 
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5); 
+}
+.st-am-header { 
+    padding: 15px; border-bottom: 1px solid var(--SmartThemeBorderColor); 
+    display: flex; justify-content: space-between; align-items: center; 
+    background: rgba(128,128,128,0.1); 
+    border-top-left-radius: 10px; border-top-right-radius: 10px; 
+}
+.st-am-content { 
+    padding: 15px; overflow-y: auto; flex: 1; 
 }
