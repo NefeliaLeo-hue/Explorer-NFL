@@ -1,10 +1,10 @@
 <div id="st-am-extension-settings" class="aps-settings-container">
     <div class="inline-drawer">
-        <div class="inline-drawer-toggle inline-drawer-header">
+        <div class="inline-drawer-toggle inline-drawer-header" style="cursor: pointer;">
             <b>Explorer-NFL-资源管理</b>
             <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
         </div>
-        <div class="inline-drawer-content">
+        <div class="inline-drawer-content" style="display: none; padding-top: 10px;">
             <p style="margin: 6px 0;">选择管理面板的唤出入口：</p>
             <div style="margin-bottom: 12px;">
                 <select id="st-am-entry-mode" class="text_pole" style="width: 100%; box-sizing: border-box;">
@@ -13,10 +13,12 @@
                     <option value="magic">仅在 魔法棒菜单 显示</option>
                 </select>
             </div>
+            
             <button id="st-am-test-open-btn" class="menu_button" style="width: 100%; margin-bottom: 8px; border-color: var(--SmartThemeQuoteColor); white-space: nowrap; display: flex; align-items: center; justify-content: center;">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
                 立刻打开管理面板
             </button>
+
             <button id="st-am-save-btn" class="menu_button" style="width: 100%; white-space: nowrap;">保存设置</button>
         </div>
     </div>
