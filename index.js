@@ -1,17 +1,20 @@
-// 【核心修复】：只导入用到的两个变量，彻底断绝 API 兼容性导致的静默崩溃！
-import { extension_settings } from '/scripts/extensions.js';
-import { saveSettingsDebounced } from '/script.js';
+// 【终极必杀】：去除了所有的 import 语句，直接使用酒馆全局变量，彻底杜绝解析崩溃！
 
-// 终极探针：如果导入成功没报错，这行字必定出现
+// 探针一：只要没有 import 拦路，这行字开局必弹！
 if (typeof toastr !== 'undefined') {
-    toastr.info("【Explorer-NFL】模块导入成功！核心代码开始运行...", "系统提示");
+    toastr.info("【Explorer-NFL】代码成功突破限制，开始运行！", "系统提示");
 }
 
 const extName = "Explorer-NFL";
 
+// 直接调用全局的 extension_settings
+if (typeof window.extension_settings === 'undefined') {
+    window.extension_settings = {}; 
+}
+
 // 初始化扩展持久化存储
-if (!extension_settings[extName]) {
-    extension_settings[extName] = {
+if (!window.extension_settings[extName]) {
+    window.extension_settings[extName] = {
         entryMode: 'both',
         worldCategories: ['日常', '战斗', '重要设定'],
         presetsCategories: ['常用预设', '破限', '测试'],
@@ -20,7 +23,7 @@ if (!extension_settings[extName]) {
         recycleBin: []      
     };
 }
-const settings = extension_settings[extName];
+const settings = window.extension_settings[extName];
 if (!settings.worldCategories) settings.worldCategories = ['日常', '战斗', '重要设定'];
 if (!settings.presetsCategories) settings.presetsCategories = ['常用预设', '破限', '测试'];
 if (!settings.worldMap) settings.worldMap = {};
@@ -61,7 +64,9 @@ const scanResources = () => {
 
     worlds.forEach(w => { if (settings.worldMap[w] === undefined) settings.worldMap[w] = ''; });
     presets.forEach(p => { if (settings.presetsMap[p] === undefined) settings.presetsMap[p] = ''; });
-    saveSettingsDebounced();
+    
+    // 调用全局保存函数
+    if (typeof window.saveSettingsDebounced === 'function') window.saveSettingsDebounced();
 };
 
 const renderModalUI = () => {
@@ -240,7 +245,7 @@ const mountUIRoot = () => {
         const targetList = currentTab === 'world' ? settings.worldCategories : settings.presetsCategories;
         if (!targetList.includes(val)) {
             targetList.push(val);
-            saveSettingsDebounced();
+            if (typeof window.saveSettingsDebounced === 'function') window.saveSettingsDebounced();
             renderModalUI();
             if (typeof toastr !== 'undefined') toastr.success(`已添加分类: ${val}`);
         }
@@ -258,7 +263,7 @@ const mountUIRoot = () => {
                 if (targetMap[k] === cat) targetMap[k] = '';
             });
             if (currentFilterCat === cat) currentFilterCat = 'all';
-            saveSettingsDebounced();
+            if (typeof window.saveSettingsDebounced === 'function') window.saveSettingsDebounced();
             renderModalUI();
             if (typeof toastr !== 'undefined') toastr.info(`已移除分类【${cat}】`);
         }
@@ -286,7 +291,7 @@ const mountUIRoot = () => {
         const targetMap = currentTab === 'world' ? settings.worldMap : settings.presetsMap;
         selectedItemNames.forEach(name => { targetMap[name] = targetCat; });
         selectedItemNames.clear();
-        saveSettingsDebounced();
+        if (typeof window.saveSettingsDebounced === 'function') window.saveSettingsDebounced();
         renderModalUI();
         if (typeof toastr !== 'undefined') toastr.success('已完成批量移动！');
     });
@@ -299,7 +304,7 @@ const mountUIRoot = () => {
             settings.recycleBin.push({ type: currentTab, name: name, oldCat: targetMap[name] || '' });
         });
         selectedItemNames.clear();
-        saveSettingsDebounced();
+        if (typeof window.saveSettingsDebounced === 'function') window.saveSettingsDebounced();
         renderModalUI();
         if (typeof toastr !== 'undefined') toastr.warning('已移入回收站');
     });
@@ -311,7 +316,7 @@ const mountUIRoot = () => {
             const item = settings.recycleBin.splice(idx, 1)[0];
             const targetMap = item.type === 'world' ? settings.worldMap : settings.presetsMap;
             targetMap[item.name] = item.oldCat || '';
-            saveSettingsDebounced();
+            if (typeof window.saveSettingsDebounced === 'function') window.saveSettingsDebounced();
             renderModalUI();
             if (typeof toastr !== 'undefined') toastr.success(`已还原: ${item.name}`);
         }
@@ -321,7 +326,7 @@ const mountUIRoot = () => {
         e.preventDefault(); e.stopPropagation();
         if (confirm("⚠️ 确定彻底清空回收站吗？此操作无法恢复！")) {
             settings.recycleBin = [];
-            saveSettingsDebounced();
+            if (typeof window.saveSettingsDebounced === 'function') window.saveSettingsDebounced();
             renderModalUI();
             if (typeof toastr !== 'undefined') toastr.error('回收站已彻底清空');
         }
@@ -437,7 +442,7 @@ jQuery(() => {
         const container = $("#extensions_settings");
         if (container.length && !$("#st-am-extension-settings").length) {
             
-            // 安全追加到列表最末尾，不干扰其他插件
+            // 安全追加到列表最末尾
             container.append(safeHtmlString);
 
             // 成功提示探针：看到这句话就往下划到底
@@ -460,7 +465,7 @@ jQuery(() => {
             $("#st-am-save-btn").css("white-space", "nowrap").off("click").on("click", (e) => { 
                 e.preventDefault(); e.stopPropagation();
                 settings.entryMode = $("#st-am-entry-mode").val();
-                saveSettingsDebounced();
+                if (typeof window.saveSettingsDebounced === 'function') window.saveSettingsDebounced();
                 if (typeof toastr !== 'undefined') toastr.success("设置已保存！"); 
             });
 
