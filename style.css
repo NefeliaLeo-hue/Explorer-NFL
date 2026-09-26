@@ -38,3 +38,8 @@
     z-index: 1999999;
     display: none;
 }
+
+/* 确保按钮里的 SVG 跟随主题色 */
+#st-am-test-open-btn svg {
+    stroke: var(--SmartThemeBodyColor);
+}
