@@ -3,7 +3,7 @@ import { saveSettingsDebounced, eventSource, event_types } from '/script.js';
 
 const extName = "Explorer-NFL";
 
-// 严格按照 Auto-Persona-Switch-NFL 的规范初始化存储
+// 初始化扩展持久化存储
 if (!extension_settings[extName]) {
     extension_settings[extName] = {
         entryMode: 'both',
@@ -21,7 +21,7 @@ if (!settings.worldMap) settings.worldMap = {};
 if (!settings.presetsMap) settings.presetsMap = {};
 if (!settings.recycleBin) settings.recycleBin = [];
 
-// 内联 SVG 图标
+// 内联 SVG 图标库
 const SVG = {
     manage: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path><line x1="12" y1="11" x2="12" y2="17"></line><line x1="9" y1="14" x2="15" y2="14"></line></svg>`,
     book: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>`,
@@ -188,7 +188,7 @@ const renderModalUI = () => {
     body.append(`<div style="max-height:48vh; overflow-y:auto;">${itemsListHtml}</div>`);
 };
 
-// 挂载主模态框容器
+// 挂载模态框主容器
 const mountUIRoot = () => {
     if ($("#st-am-modal-wrapper").length) return;
 
@@ -208,7 +208,7 @@ const mountUIRoot = () => {
     `;
     $("body").append(html);
 
-    // 绑定模态框基础事件
+    // 模态框基础关闭监听
     $("#st-am-modal-wrapper").on("click", function(e) {
         if (e.target === this) $("#st-am-modal-wrapper").css("display", "none");
     });
@@ -367,11 +367,11 @@ const openManagerModal = (targetTab = 'world') => {
     $("#st-am-modal-wrapper").css("display", "flex");
 };
 
-// 按钮注入：采用类似 Auto-Persona-Switch-NFL 的纯净轮询守护机制
+// 按钮注入：轮询守护机制
 const injectButtons = () => {
     const mode = settings.entryMode || 'both';
 
-    // 1. 预设面板注入：精准捕获当前可见的预设下拉框所在的行
+    // 1. 预设面板注入
     if (mode === 'native' || mode === 'both') {
         const presetEl = $('#openai_preset, #chat_completion_preset, #settings_preset').filter(':visible').first();
         const targetEl = presetEl.length ? presetEl : $('#openai_preset, #chat_completion_preset, #settings_preset').first();
@@ -386,7 +386,7 @@ const injectButtons = () => {
         $('#st-am-btn-preset').remove();
     }
 
-    // 2. 世界书面板注入：自愈检测
+    // 2. 世界书面板注入
     if (mode === 'native' || mode === 'both') {
         const worldBox = $('#world_info');
         if (worldBox.length && !$('#st-am-btn-world').length) {
@@ -423,7 +423,7 @@ const injectButtons = () => {
     }
 };
 
-// 启动入口：严格对应 Auto-Persona-Switch-NFL 的装载模式
+// 启动入口：动态路径加载 + 内联兜底挂载
 jQuery(async () => {
     mountUIRoot();
 
@@ -447,17 +447,67 @@ jQuery(async () => {
     // 500ms 纯净心跳轮询注入
     setInterval(injectButtons, 500);
 
-    // 加载侧边栏 HTML (完全照搬旧插件逻辑)
+    // 加载侧边栏横条（抽屉）
     try {
-        const htmlFile = await $.get(`/scripts/extensions/third-party/${extName}/index.html`);
-        const timer = setInterval(() => {
-            if ($("#extensions_settings").length && !$("#st-am-extension-settings").length) {
-                $("#extensions_settings").append(htmlFile);
+        let htmlFile = '';
+        
+        // 尝试通过 import.meta.url 动态获取当前同级 index.html
+        try {
+            const htmlUrl = new URL('./index.html', import.meta.url).href;
+            htmlFile = await $.get(htmlUrl);
+        } catch (fetchErr) {
+            console.warn(`[${extName}] 动态获取 index.html 失败，使用内联兜底模板:`, fetchErr);
+        }
 
+        // 若获取失败或为空，自动使用内联兜底 HTML
+        if (!htmlFile) {
+            htmlFile = `
+            <div id="st-am-extension-settings" class="aps-settings-container">
+                <div class="inline-drawer">
+                    <div class="inline-drawer-toggle inline-drawer-header" style="cursor: pointer;">
+                        <b>Explorer-NFL-资源管理</b>
+                        <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+                    </div>
+                    <div class="inline-drawer-content" style="display: none; padding-top: 10px;">
+                        <p style="margin: 6px 0;">选择管理面板的唤出入口：</p>
+                        <div style="margin-bottom: 12px;">
+                            <select id="st-am-entry-mode" class="text_pole" style="width: 100%; box-sizing: border-box;">
+                                <option value="both">原生面板 与 魔法棒 同时显示</option>
+                                <option value="native">仅在 原生面板 显示</option>
+                                <option value="magic">仅在 魔法棒菜单 显示</option>
+                            </select>
+                        </div>
+                        <button id="st-am-test-open-btn" class="menu_button" style="width: 100%; margin-bottom: 8px; border-color: var(--SmartThemeQuoteColor); white-space: nowrap; display: flex; align-items: center; justify-content: center;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                            立刻打开管理面板
+                        </button>
+                        <button id="st-am-save-btn" class="menu_button" style="width: 100%; white-space: nowrap;">保存设置</button>
+                    </div>
+                </div>
+            </div>`;
+        }
+
+        // 挂载横边栏抽屉与绑定交互
+        const timer = setInterval(() => {
+            const container = $("#extensions_settings");
+            if (container.length && !$("#st-am-extension-settings").length) {
+                container.append(htmlFile);
+
+                // 绑定抽屉点击展开/折叠
+                $("#st-am-extension-settings .inline-drawer-toggle").off("click").on("click", function(e) {
+                    e.preventDefault();
+                    const icon = $(this).find(".inline-drawer-icon");
+                    const content = $(this).siblings(".inline-drawer-content");
+                    icon.toggleClass("down up");
+                    content.slideToggle(200);
+                });
+
+                // 初始化当前下拉选择
                 if (settings.entryMode) {
                     $("#st-am-entry-mode").val(settings.entryMode);
                 }
 
+                // 保存按钮事件
                 $("#st-am-save-btn").css("white-space", "nowrap").off("click").on("click", (e) => { 
                     e.preventDefault(); e.stopPropagation();
                     settings.entryMode = $("#st-am-entry-mode").val();
@@ -465,6 +515,7 @@ jQuery(async () => {
                     if (typeof toastr !== 'undefined') toastr.success("设置已保存！"); 
                 });
 
+                // 测试打开按钮事件
                 $("#st-am-test-open-btn").off("click").on("click", (e) => {
                     e.preventDefault(); e.stopPropagation();
                     openManagerModal('world');
@@ -474,6 +525,6 @@ jQuery(async () => {
             }
         }, 500);
     } catch (err) {
-        console.error(`[${extName}] 侧边栏加载失败:`, err);
+        console.error(`[${extName}] 侧边栏加载异常:`, err);
     }
 });
