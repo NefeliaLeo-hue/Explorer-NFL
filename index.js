@@ -6,8 +6,8 @@ const extName = "Explorer-NFL";
 if (!extension_settings[extName]) {
     extension_settings[extName] = {
         entryMode: 'both',
-        worldCategories: ['日常', '战斗', '重要设定'],
-        presetsCategories: ['常用预设', '破限', '测试'],
+        worldCategories: [],
+        presetsCategories: [],
         worldMap: {},
         presetsMap: {},
         recycleBin: []
@@ -15,17 +15,26 @@ if (!extension_settings[extName]) {
 }
 
 const settings = extension_settings[extName];
+
 if (!Array.isArray(settings.worldCategories)) {
-    settings.worldCategories = ['日常', '战斗', '重要设定'];
+    settings.worldCategories = [];
 }
 
 if (!Array.isArray(settings.presetsCategories)) {
-    settings.presetsCategories = ['常用预设', '破限', '测试'];
+    settings.presetsCategories = [];
 }
 
-if (!settings.worldMap) settings.worldMap = {};
-if (!settings.presetsMap) settings.presetsMap = {};
-if (!settings.recycleBin) settings.recycleBin = [];
+if (!settings.worldMap) {
+    settings.worldMap = {};
+}
+
+if (!settings.presetsMap) {
+    settings.presetsMap = {};
+}
+
+if (!settings.recycleBin) {
+    settings.recycleBin = [];
+}
 
 const SVG = {
     manage: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path><line x1="12" y1="11" x2="12" y2="17"></line><line x1="9" y1="14" x2="15" y2="14"></line></svg>`,
@@ -41,47 +50,295 @@ let currentTab = 'world';
 let currentFilterCat = 'all';
 let selectedItemNames = new Set();
 
+// all = 可以查看世界书和预设
+// world = 只能查看世界书和回收站
+// preset = 只能查看预设和回收站
+let managerScope = 'all';
+
 const scanResources = () => {
-    const worlds = new Set(Object.keys(settings.worldMap));
-    const presets = new Set(Object.keys(settings.presetsMap));
+    const worldsFound = new Set();
+    const presetsFound = new Set();
 
-    $('#world_info select option, select#world_info_select option, select#world_editor_select option').each(function() {
-        const val = $(this).val() || $(this).text();
-        const clean = String(val).trim();
-        if (clean && clean !== '--- 选择以编辑 ---' && clean !== 'None' && clean !== '创建') worlds.add(clean);
-    });
+    let worldScanAvailable = false;
+    let presetScanAvailable = false;
 
-    if (Array.isArray(window.world_names)) window.world_names.forEach(w => worlds.add(w));
+    // =========================
+    // 扫描世界书
+    // =========================
+    // SillyTavern 的世界书下拉框中：
+    // option.value 是数字索引，例如 0、1、2
+    // option.text 才是真正的世界书名称。
+    if (Array.isArray(window.world_names)) {
 
-    $('#openai_preset option, #chat_completion_preset option, #settings_preset option, select[id*="preset"] option').each(function() {
-        const val = $(this).val() || $(this).text();
-        const clean = String(val).trim();
-        if (clean && clean !== '---' && clean !== 'None') presets.add(clean);
-    });
+        worldScanAvailable = true;
 
-    worlds.forEach(w => { if (settings.worldMap[w] === undefined) settings.worldMap[w] = ''; });
-    presets.forEach(p => { if (settings.presetsMap[p] === undefined) settings.presetsMap[p] = ''; });
+        window.world_names.forEach(name => {
+            const clean = String(name).trim();
+
+            if (clean) {
+                worldsFound.add(clean);
+            }
+        });
+
+    } else {
+
+        const worldSelects = $('#world_info, #world_editor_select');
+
+        worldScanAvailable = worldSelects.length > 0;
+
+        worldSelects.find('option').each(function() {
+
+            const clean = $(this).text().trim();
+
+            if (
+                clean &&
+                clean !== '--- 选择以编辑 ---' &&
+                clean !== 'None' &&
+                clean !== '创建'
+            ) {
+                worldsFound.add(clean);
+            }
+
+        });
+    }
+
+
+    // =========================
+    // 扫描预设
+    // =========================
+    // 这里只扫描 Chat Completion / OpenAI 预设。
+    // 不再使用 select[id*="preset"]，
+    // 防止把 NovelAI、其他模型预设等一起扫进来。
+    const presetSelector =
+        '#settings_preset_openai, #openai_preset, #chat_completion_preset';
+
+    const presetSelect = $(presetSelector);
+
+    if (presetSelect.length) {
+
+        presetScanAvailable = true;
+
+        presetSelect.find('option').each(function() {
+
+            const clean = $(this).text().trim();
+
+            if (
+                clean &&
+                clean !== '---' &&
+                clean !== 'None'
+            ) {
+                presetsFound.add(clean);
+            }
+
+        });
+    }
+
+
+    // =========================
+    // 更新世界书列表
+    // =========================
+    // 只有确认 SillyTavern 的世界书列表存在时，
+    // 才清理旧数据。
+    //
+    // 回收站里的项目必须保留，
+    // 否则之后无法正确还原。
+    if (worldScanAvailable) {
+
+        const recycledWorlds = new Set(
+            settings.recycleBin
+                .filter(item => item.type === 'world')
+                .map(item => item.name)
+        );
+
+        Object.keys(settings.worldMap).forEach(name => {
+
+            if (
+                !worldsFound.has(name) &&
+                !recycledWorlds.has(name)
+            ) {
+                delete settings.worldMap[name];
+            }
+
+        });
+
+        worldsFound.forEach(name => {
+
+            if (settings.worldMap[name] === undefined) {
+                settings.worldMap[name] = '';
+            }
+
+        });
+    }
+
+
+    // =========================
+    // 更新预设列表
+    // =========================
+    if (presetScanAvailable) {
+
+        const recycledPresets = new Set(
+            settings.recycleBin
+                .filter(item => item.type === 'preset')
+                .map(item => item.name)
+        );
+
+        Object.keys(settings.presetsMap).forEach(name => {
+
+            if (
+                !presetsFound.has(name) &&
+                !recycledPresets.has(name)
+            ) {
+                delete settings.presetsMap[name];
+            }
+
+        });
+
+        presetsFound.forEach(name => {
+
+            if (settings.presetsMap[name] === undefined) {
+                settings.presetsMap[name] = '';
+            }
+
+        });
+    }
+
+
     saveSettingsDebounced();
 };
 
+
 const renderModalUI = () => {
     const body = $('#st-am-content-body');
-    if (!body.length) return;
+
+    if (!body.length) {
+        return;
+    }
+
     body.empty();
+
+    const canShowWorld =
+        managerScope === 'all' ||
+        managerScope === 'world';
+
+    const canShowPreset =
+        managerScope === 'all' ||
+        managerScope === 'preset';
 
     const isWorld = currentTab === 'world';
     const isPreset = currentTab === 'preset';
     const isRecycle = currentTab === 'recycle';
 
+
+    // 如果当前入口不允许查看当前标签，
+    // 自动切换到该入口允许的第一个页面。
+    if (
+        !isRecycle &&
+        (
+            (isWorld && !canShowWorld) ||
+            (isPreset && !canShowPreset)
+        )
+    ) {
+        currentTab =
+            canShowWorld
+                ? 'world'
+                : canShowPreset
+                    ? 'preset'
+                    : 'recycle';
+    }
+
+
+    const navButtons = [];
+
+
+    // 世界书按钮
+    if (canShowWorld) {
+
+        navButtons.push(`
+            <button
+                class="menu_button st-am-tab-btn"
+                data-tab="world"
+                style="
+                    flex:1;
+                    margin:0;
+                    display:flex;
+                    align-items:center;
+                    justify-content:center;
+                    ${currentTab === 'world'
+                        ? 'border-color:var(--SmartThemeQuoteColor); font-weight:bold; background:rgba(128,128,128,0.2);'
+                        : ''
+                    }
+                "
+            >
+                ${SVG.book} 世界书分类
+            </button>
+        `);
+    }
+
+
+    // 预设按钮
+    if (canShowPreset) {
+
+        navButtons.push(`
+            <button
+                class="menu_button st-am-tab-btn"
+                data-tab="preset"
+                style="
+                    flex:1;
+                    margin:0;
+                    display:flex;
+                    align-items:center;
+                    justify-content:center;
+                    ${currentTab === 'preset'
+                        ? 'border-color:var(--SmartThemeQuoteColor); font-weight:bold; background:rgba(128,128,128,0.2);'
+                        : ''
+                    }
+                "
+            >
+                ${SVG.sliders} 预设分类
+            </button>
+        `);
+    }
+
+
+    // 回收站始终显示
+    navButtons.push(`
+        <button
+            class="menu_button st-am-tab-btn danger"
+            data-tab="recycle"
+            style="
+                flex:0.8;
+                margin:0;
+                display:flex;
+                align-items:center;
+                justify-content:center;
+                ${isRecycle
+                    ? 'border-color:#dc3545; font-weight:bold; background:rgba(220,53,69,0.2);'
+                    : ''
+                }
+            "
+        >
+            ${SVG.trash} 回收站 (${settings.recycleBin.length})
+        </button>
+    `);
+
+
     const navHtml = `
-        <div style="display:flex; gap:8px; margin-bottom:12px; border-bottom:1px solid var(--SmartThemeBorderColor, #ccc); padding-bottom:8px;">
-            <button class="menu_button st-am-tab-btn" data-tab="world" style="flex:1; margin:0; display:flex; align-items:center; justify-content:center; ${isWorld ? 'border-color:var(--SmartThemeQuoteColor); font-weight:bold; background:rgba(128,128,128,0.2);' : ''}">${SVG.book} 世界书分类</button>
-            <button class="menu_button st-am-tab-btn" data-tab="preset" style="flex:1; margin:0; display:flex; align-items:center; justify-content:center; ${isPreset ? 'border-color:var(--SmartThemeQuoteColor); font-weight:bold; background:rgba(128,128,128,0.2);' : ''}">${SVG.sliders} 预设分类</button>
-            <button class="menu_button st-am-tab-btn danger" data-tab="recycle" style="flex:0.8; margin:0; display:flex; align-items:center; justify-content:center; ${isRecycle ? 'border-color:#dc3545; font-weight:bold; background:rgba(220,53,69,0.2);' : ''}">${SVG.trash} 回收站 (${settings.recycleBin.length})</button>
+        <div
+            style="
+                display:flex;
+                gap:8px;
+                margin-bottom:12px;
+                border-bottom:1px solid var(--SmartThemeBorderColor, #ccc);
+                padding-bottom:8px;
+            "
+        >
+            ${navButtons.join('')}
         </div>
     `;
 
+
     body.append(navHtml);
+    
 
     if (isRecycle) {
         let recycleListHtml = '';
@@ -154,12 +411,74 @@ if (!Array.isArray(categoriesList)) {
     catBadgesHtml += `</div>`;
 
     const createCatHtml = `
-        <div style="display:flex; gap:6px; margin-bottom:12px;">
-            <input type="text" id="st-am-new-cat-input" class="text_pole" placeholder="新建分类名称..." style="flex:1; padding:4px 8px; font-size:0.85em;">
-            <button id="st-am-add-cat-btn" class="menu_button" style="margin:0; padding:4px 10px; font-size:0.85em; display:flex; align-items:center;">${SVG.plus} 新建分类</button>
-            <button id="st-am-rescan-btn" class="menu_button" style="margin:0; padding:4px 10px; font-size:0.85em; display:flex; align-items:center;">${SVG.refresh} 重新扫描</button>
+    <div
+        style="
+            display:flex;
+            flex-direction:column;
+            gap:6px;
+            margin-bottom:12px;
+        "
+    >
+
+        <input
+            type="text"
+            id="st-am-new-cat-input"
+            class="text_pole"
+            placeholder="新建分类名称..."
+            style="
+                width:100%;
+                box-sizing:border-box;
+                padding:6px 8px;
+                font-size:0.85em;
+            "
+        >
+
+        <div
+            style="
+                display:flex;
+                gap:6px;
+                width:100%;
+            "
+        >
+
+            <button
+                id="st-am-add-cat-btn"
+                class="menu_button"
+                style="
+                    flex:1;
+                    margin:0;
+                    padding:6px 10px;
+                    font-size:0.85em;
+                    display:flex;
+                    align-items:center;
+                    justify-content:center;
+                    white-space:nowrap;
+                "
+            >
+                ${SVG.plus} 新建分类
+            </button>
+
+            <button
+                id="st-am-rescan-btn"
+                class="menu_button"
+                style="
+                    flex:1;
+                    margin:0;
+                    padding:6px 10px;
+                    font-size:0.85em;
+                    display:flex;
+                    align-items:center;
+                    justify-content:center;
+                    white-space:nowrap;
+                "
+            >
+                ${SVG.refresh} 重新扫描
+            </button>
+
         </div>
-    `;
+
+    </div>
+`;
 
     const displayItems = allItems.filter(name => {
         const cat = itemMap[name] || '';
@@ -256,19 +575,53 @@ const mountUIRoot = () => {
         renderModalUI();
     });
 
-    $(document).off("click.stAmAddCat").on("click.stAmAddCat", "#st-am-add-cat-btn", function(e) {
+    $(document).off("click.stAmAddCat").on(
+    "click.stAmAddCat",
+    "#st-am-add-cat-btn",
+    function(e) {
+
         e.preventDefault();
         e.stopPropagation();
+
         const val = $("#st-am-new-cat-input").val().trim();
-        if (!val) return;
-        const targetList = currentTab === 'world' ? settings.worldCategories : settings.presetsCategories;
-        if (!targetList.includes(val)) {
-            targetList.push(val);
-            saveSettingsDebounced();
-            renderModalUI();
-            if (typeof toastr !== 'undefined') toastr.success(`已添加分类: ${val}`);
+
+
+        if (!val) {
+
+            if (typeof toastr !== 'undefined') {
+                toastr.warning("请先输入分类名称");
+            }
+
+            return;
         }
-    });
+
+
+        const targetList =
+            currentTab === 'world'
+                ? settings.worldCategories
+                : settings.presetsCategories;
+
+
+        if (!targetList.includes(val)) {
+
+            targetList.push(val);
+
+            saveSettingsDebounced();
+
+            renderModalUI();
+
+            if (typeof toastr !== 'undefined') {
+                toastr.success(`已添加分类: ${val}`);
+            }
+
+        } else {
+
+            if (typeof toastr !== 'undefined') {
+                toastr.warning(`分类【${val}】已经存在`);
+            }
+        }
+    }
+);
 
     $(document).off("click.stAmDelCat").on("click.stAmDelCat", ".st-am-del-cat", function(e) {
         e.preventDefault();
@@ -527,22 +880,35 @@ jQuery(async () => {
     $(document).off("click.stAmBtn").on("click.stAmBtn", "#st-am-btn-preset", function(e) {
         e.preventDefault();
         e.stopPropagation();
-        openManagerModal('preset');
+        openManagerModal('preset', 'preset');
     });
 
     $(document).off("click.stAmWorldBtn").on("click.stAmWorldBtn", "#st-am-btn-world", function(e) {
         e.preventDefault();
         e.stopPropagation();
-        openManagerModal('world');
+        openManagerModal('world', 'world');
     });
 
-   $(document).off("click.stAmMagicBtn").on("click.stAmMagicBtn", "#st-am-btn-magic", function(e) {
-    e.preventDefault();
-    e.stopPropagation();
+   $(document)
+    .off("click.stAmMagicBtn")
+    .on(
+        "click.stAmMagicBtn",
+        "#st-am-btn-magic",
+        function(e) {
 
-    openManagerModal('world');
+            e.preventDefault();
+            e.stopPropagation();
 
-    });
+            // 魔法棒入口：允许查看全部资源
+            openManagerModal('world', 'all');
+
+            $(this)
+                .closest(
+                    'div[style*="position"], .popup, .dropdown'
+                )
+                .hide();
+        }
+    );
 
     setInterval(injectButtons, 500);
 
@@ -597,12 +963,16 @@ eventSource.on(event_types.WORLDINFO_SETTINGS_UPDATED, () => {
             }
         });
 
-        $("#st-am-test-open-btn").off("click").on("click", (e) => {
-            e.preventDefault();
-            e.stopPropagation();
+        $("#st-am-test-open-btn")
+    .off("click")
+    .on("click", (e) => {
 
-            openManagerModal('world');
-        });
+        e.preventDefault();
+        e.stopPropagation();
+
+        // 横边栏入口：允许查看全部资源
+        openManagerModal('world', 'all');
+    });
 
         if (typeof toastr !== 'undefined') {
             toastr.success("Explorer-NFL 加载成功！");
