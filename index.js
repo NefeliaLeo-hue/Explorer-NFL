@@ -350,11 +350,25 @@ const mountUIRoot = () => {
 };
 
 const openManagerModal = (targetTab = 'world') => {
-    currentTab = targetTab;
-    selectedItemNames.clear();
-    scanResources();
-    renderModalUI();
-    $("#st-am-modal-wrapper").css("display", "flex");
+    try {
+        console.log("[Explorer-NFL] 打开管理面板");
+
+        currentTab = targetTab;
+        selectedItemNames.clear();
+
+        console.log("[Explorer-NFL] scanResources");
+        scanResources();
+
+        console.log("[Explorer-NFL] renderModalUI");
+        renderModalUI();
+
+        console.log("[Explorer-NFL] 显示窗口");
+        $("#st-am-modal-wrapper").css("display", "flex");
+
+    } catch (err) {
+        console.error("[Explorer-NFL] 打开面板失败:", err);
+        alert("Explorer-NFL打开失败，请查看控制台错误");
+    }
 };
 
 const injectButtons = () => {
