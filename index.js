@@ -15,8 +15,14 @@ if (!extension_settings[extName]) {
 }
 
 const settings = extension_settings[extName];
-if (!settings.worldCategories) settings.worldCategories = ['日常', '战斗', '重要设定'];
-if (!settings.presetsCategories) settings.presetsCategories = ['常用预设', '破限', '测试'];
+if (!Array.isArray(settings.worldCategories)) {
+    settings.worldCategories = ['日常', '战斗', '重要设定'];
+}
+
+if (!Array.isArray(settings.presetsCategories)) {
+    settings.presetsCategories = ['常用预设', '破限', '测试'];
+}
+
 if (!settings.worldMap) settings.worldMap = {};
 if (!settings.presetsMap) settings.presetsMap = {};
 if (!settings.recycleBin) settings.recycleBin = [];
@@ -107,7 +113,22 @@ const renderModalUI = () => {
         return;
     }
 
-    const categoriesList = isWorld ? settings.worldCategories : settings.presetsCategories;
+    let categoriesList = isWorld 
+    ? settings.worldCategories 
+    : settings.presetsCategories;
+
+if (!Array.isArray(categoriesList)) {
+    categoriesList = [];
+    
+    if (isWorld) {
+        settings.worldCategories = [];
+    } else {
+        settings.presetsCategories = [];
+    }
+
+    saveSettingsDebounced();
+}
+    
     const itemMap = isWorld ? settings.worldMap : settings.presetsMap;
     const recycledSet = new Set(settings.recycleBin.filter(r => r.type === (isWorld ? 'world' : 'preset')).map(r => r.name));
     const allItems = Object.keys(itemMap).filter(k => !recycledSet.has(k));
