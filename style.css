@@ -49,3 +49,8 @@
 #st-am-save-btn, #st-am-test-open-btn {
     white-space: nowrap !important;
 }
+
+/* Explorer-NFL 通知层 */
+#toast-container {
+    z-index: 2147483648 !important;
+}
