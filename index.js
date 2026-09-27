@@ -494,11 +494,12 @@ jQuery(async () => {
         openManagerModal('world');
     });
 
-    $(document).off("click.stAmMagicBtn").on("click.stAmMagicBtn", "#st-am-btn-magic", function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        openManagerModal('world');
-        $(this).closest('div[style*="position"], .popup, .dropdown').hide();
+   $(document).off("click.stAmMagicBtn").on("click.stAmMagicBtn", "#st-am-btn-magic", function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    openManagerModal('world');
+
     });
 
     setInterval(injectButtons, 500);
