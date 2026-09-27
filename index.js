@@ -723,12 +723,23 @@ const mountUIRoot = () => {
     });
 };
 
-const openManagerModal = (targetTab = 'world') => {
+const openManagerModal = (targetTab = 'world', scope = 'all') => {
     try {
         console.log("[Explorer-NFL] 打开管理面板");
 
+        // 保存当前入口允许查看的范围
+        // all    = 世界书 + 预设 + 回收站
+        // world  = 世界书 + 回收站
+        // preset = 预设 + 回收站
+        managerScope = scope;
+
         currentTab = targetTab;
+
+        // 每次打开面板时清空之前选中的项目
         selectedItemNames.clear();
+
+        console.log("[Explorer-NFL] managerScope:", managerScope);
+        console.log("[Explorer-NFL] currentTab:", currentTab);
 
         console.log("[Explorer-NFL] scanResources");
         scanResources();
@@ -740,15 +751,19 @@ const openManagerModal = (targetTab = 'world') => {
         $("#st-am-modal-wrapper").css("display", "flex");
 
     } catch (err) {
-    console.error("[Explorer-NFL] 打开面板失败:", err);
 
-    alert(
-        "Explorer-NFL错误:\n\n" +
-        err.message +
-        "\n\n" +
-        err.stack
-    );
-}
+        console.error(
+            "[Explorer-NFL] 打开面板失败:",
+            err
+        );
+
+        alert(
+            "Explorer-NFL错误:\n\n" +
+            err.message +
+            "\n\n" +
+            err.stack
+        );
+    }
 };
 
 const injectButtons = () => {
