@@ -445,33 +445,34 @@ const injectButtons = () => {
     // =========================
     // 世界书按钮
     // =========================
-    if (mode === 'native' || mode === 'both') {
+   if (mode === 'native' || mode === 'both') {
 
-        const worldBox = $('#world_info');
+    const worldBox = $('#world_info');
 
-        if (worldBox.length && !$('#st-am-btn-world').length) {
+    if (worldBox.length && !$('#st-am-btn-world').length) {
 
-            worldBox.prepend(`
-                <div id="st-am-btn-world"
-                class="menu_button st-am-native-btn"
-                style="
-                width:100%;
-                margin:8px 0;
-                box-sizing:border-box;
-                display:flex;
-                justify-content:center;
-                align-items:center;">
-                    ${SVG.book}
-                    批量管理世界书
-                </div>
-            `);
-        }
-
-    } else {
-
-        $('#st-am-btn-world').remove();
+        worldBox.prepend(`
+            <div id="st-am-btn-world"
+            class="menu_button st-am-native-btn"
+            style="
+            width:100%;
+            margin:8px 0;
+            box-sizing:border-box;
+            display:flex;
+            justify-content:center;
+            align-items:center;">
+                ${SVG.book}
+                批量管理世界书
+            </div>
+        `);
 
     }
+
+} else {
+
+    $('#st-am-btn-world').remove();
+
+}
 
 
 
@@ -544,6 +545,17 @@ jQuery(async () => {
     });
 
     setInterval(injectButtons, 500);
+
+
+eventSource.on(event_types.APP_READY, () => {
+    injectButtons();
+});
+
+eventSource.on(event_types.WORLDINFO_SETTINGS_UPDATED, () => {
+    setTimeout(() => {
+        injectButtons();
+    }, 300);
+});
 
     // 加载扩展设置面板（新版 SillyTavern 推荐方式）
     try {
