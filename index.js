@@ -366,9 +366,15 @@ const openManagerModal = (targetTab = 'world') => {
         $("#st-am-modal-wrapper").css("display", "flex");
 
     } catch (err) {
-        console.error("[Explorer-NFL] 打开面板失败:", err);
-        alert("Explorer-NFL打开失败，请查看控制台错误");
-    }
+    console.error("[Explorer-NFL] 打开面板失败:", err);
+
+    alert(
+        "Explorer-NFL错误:\n\n" +
+        err.message +
+        "\n\n" +
+        err.stack
+    );
+}
 };
 
 const injectButtons = () => {
