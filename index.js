@@ -360,58 +360,125 @@ const openManagerModal = (targetTab = 'world') => {
 const injectButtons = () => {
     const mode = settings.entryMode || 'both';
 
+    // =========================
+    // 预设界面按钮
+    // =========================
     if (mode === 'native' || mode === 'both') {
-        const presetEl = $('#openai_preset, #chat_completion_preset, #settings_preset').filter(':visible').first();
-        const targetEl = presetEl.length ? presetEl : $('#openai_preset, #chat_completion_preset, #settings_preset').first();
 
-        if (targetEl.length && !$('#st-am-btn-preset').length) {
-            targetEl.closest('.flex-container, div').after(`
-                <div id="st-am-btn-preset" class="menu_button st-am-native-btn" style="width:100%; margin:8px 0; box-sizing:border-box; display:flex; justify-content:center; align-items:center;">
-                    ${SVG.sliders} 批量管理预设
+        const presetEl = $(
+            '#openai_preset, ' +
+            '#chat_completion_preset, ' +
+            '#settings_preset, ' +
+            'select[id*="preset"]'
+        ).filter(':visible').first();
+
+        if (presetEl.length && !$('#st-am-btn-preset').length) {
+
+            const container =
+                presetEl.closest('.flex-container').length
+                    ? presetEl.closest('.flex-container')
+                    : presetEl.parent();
+
+            container.after(`
+                <div id="st-am-btn-preset"
+                class="menu_button st-am-native-btn"
+                style="
+                width:100%;
+                margin:8px 0;
+                box-sizing:border-box;
+                display:flex;
+                justify-content:center;
+                align-items:center;">
+                    ${SVG.sliders}
+                    批量管理预设
                 </div>
             `);
         }
+
     } else {
         $('#st-am-btn-preset').remove();
     }
 
+
+
+    // =========================
+    // 世界书按钮
+    // =========================
     if (mode === 'native' || mode === 'both') {
+
         const worldBox = $('#world_info');
 
         if (worldBox.length && !$('#st-am-btn-world').length) {
+
             worldBox.prepend(`
-                <div id="st-am-btn-world" class="menu_button st-am-native-btn" style="width:100%; margin:8px 0; box-sizing:border-box; display:flex; justify-content:center; align-items:center;">
-                    ${SVG.book} 批量管理世界书
+                <div id="st-am-btn-world"
+                class="menu_button st-am-native-btn"
+                style="
+                width:100%;
+                margin:8px 0;
+                box-sizing:border-box;
+                display:flex;
+                justify-content:center;
+                align-items:center;">
+                    ${SVG.book}
+                    批量管理世界书
                 </div>
             `);
         }
+
     } else {
+
         $('#st-am-btn-world').remove();
+
     }
 
+
+
+    // =========================
+    // 魔法棒入口
+    // =========================
     if (mode === 'magic' || mode === 'both') {
-        const targetItem = $('div, span, a, li').filter(function() {
-            const txt = $(this).text().trim();
-            return txt === '变量管理器' || txt === '打开数据库';
-        }).first();
 
-        if (targetItem.length) {
-            const rowContainer = targetItem.closest('div, li');
-            const menuList = rowContainer.parent();
 
-            if (menuList.length && !menuList.find('#st-am-btn-magic').length) {
-                rowContainer.after(`
-                    <div id="st-am-btn-magic" class="st-am-native-btn" style="cursor:pointer; display:flex; width:100%; box-sizing:border-box; margin:4px 0; padding:8px 12px; justify-content:flex-start;">
-                        ${SVG.manage} <span>资源管理器</span>
-                    </div>
-                `);
-            }
+        // 新版 ST 不再可靠使用文字匹配
+        // 直接找扩展菜单容器
+
+        const menu =
+            $('#extensionsMenu').length
+                ? $('#extensionsMenu')
+                : $('.extensions_menu').first();
+
+
+        if (menu.length && !$('#st-am-btn-magic').length) {
+
+            menu.append(`
+                <div id="st-am-btn-magic"
+                class="st-am-native-btn"
+                style="
+                cursor:pointer;
+                display:flex;
+                width:100%;
+                box-sizing:border-box;
+                margin:4px 0;
+                padding:8px 12px;
+                justify-content:flex-start;">
+                    ${SVG.manage}
+                    <span>
+                    资源管理器
+                    </span>
+                </div>
+            `);
+
         }
-    } else {
-        $('#st-am-btn-magic').remove();
-    }
-};
 
+
+    } else {
+
+        $('#st-am-btn-magic').remove();
+
+    }
+
+};
 jQuery(async () => {
     mountUIRoot();
 
