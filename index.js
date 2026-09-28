@@ -1283,24 +1283,11 @@ const injectButtons = () => {
 
     const worldBox = $('#world_info');
 
-    if (worldBox.length && !$('#st-am-btn-world').length) {
+if (worldBox.length && !$('#st-am-btn-world').length) {
 
-        worldBox.parent().prepend(`
-            <div id="st-am-btn-world"
-            class="menu_button st-am-native-btn"
-            style="
-            width:100%;
-            margin:8px 0;
-            box-sizing:border-box;
-            display:flex;
-            justify-content:center;
-            align-items:center;">
-                ${SVG.book}
-                批量管理世界书
-            </div>
-        `);
+    // 暂时禁用世界书按钮注入，用于排查 World Info 布局问题
 
-    }
+}
 
 } else {
 
