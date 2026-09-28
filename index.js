@@ -1342,48 +1342,16 @@ if (worldBox.length && !$('#st-am-btn-world').length) {
     }
 
 };
+
+/*
 jQuery(async () => {
+
     mountUIRoot();
 
-    $(document).off("click.stAmBtn").on("click.stAmBtn", "#st-am-btn-preset", function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        openManagerModal('preset', 'preset');
-    });
+    // 这里原本所有初始化代码
 
-    $(document).off("click.stAmWorldBtn").on("click.stAmWorldBtn", "#st-am-btn-world", function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        openManagerModal('world', 'world');
-    });
-
-   $(document)
-    .off("click.stAmMagicBtn")
-    .on(
-        "click.stAmMagicBtn",
-        "#st-am-btn-magic",
-        function(e) {
-
-            e.preventDefault();
-            e.stopPropagation();
-
-            // 魔法棒入口：允许查看全部资源
-            openManagerModal('world', 'all');
-
-            $(this)
-                .closest(
-                    'div[style*="position"], .popup, .dropdown'
-                )
-                .hide();
-        }
-    );
-
-    setInterval(injectButtons, 500);
-
-
-eventSource.on(event_types.APP_READY, () => {
-    injectButtons();
 });
+*/
 
 eventSource.on(event_types.WORLDINFO_SETTINGS_UPDATED, () => {
     setTimeout(() => {
