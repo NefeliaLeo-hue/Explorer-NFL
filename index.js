@@ -495,18 +495,145 @@ if (!Array.isArray(categoriesList)) {
     let moveOptionsHtml = `<option value="">-- 选择移动目标分类 --</option><option value="">(移至未分类)</option>`;
     categoriesList.forEach(c => { moveOptionsHtml += `<option value="${c}">${c}</option>`; });
 
-    const batchBarHtml = `
-        <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(128,128,128,0.12); padding:8px 10px; border-radius:6px; margin-bottom:8px;">
-            <label style="display:flex; align-items:center; cursor:pointer; font-size:0.85em; margin:0;">
-                <input type="checkbox" id="st-am-select-all" style="margin-right:6px;" ${displayItems.length > 0 && displayItems.every(i => selectedItems.has(i)) ? 'checked' : ''}> 全选
+    const worldSelectedCount = [...selectedItems].filter(itemKey =>
+    itemKey.startsWith('world::')
+).length;
+
+const presetSelectedCount = [...selectedItems].filter(itemKey =>
+    itemKey.startsWith('preset::')
+).length;
+
+let selectedCountText = '未选择资源';
+
+if (worldSelectedCount > 0 && presetSelectedCount > 0) {
+
+    selectedCountText =
+        `已选择 ${worldSelectedCount} 个世界书 / ${presetSelectedCount} 个预设`;
+
+} else if (worldSelectedCount > 0) {
+
+    selectedCountText =
+        `已选择 ${worldSelectedCount} 个世界书`;
+
+} else if (presetSelectedCount > 0) {
+
+    selectedCountText =
+        `已选择 ${presetSelectedCount} 个预设`;
+}
+
+
+const batchBarHtml = `
+    <div
+        style="
+            display:flex;
+            flex-direction:column;
+            gap:8px;
+            background:rgba(128,128,128,0.12);
+            padding:8px 10px;
+            border-radius:6px;
+            margin-bottom:8px;
+        "
+    >
+
+        <div
+            style="
+                display:flex;
+                justify-content:space-between;
+                align-items:center;
+                gap:8px;
+            "
+        >
+
+            <label
+                style="
+                    display:flex;
+                    align-items:center;
+                    cursor:pointer;
+                    font-size:0.85em;
+                    margin:0;
+                "
+            >
+                <input
+                    type="checkbox"
+                    id="st-am-select-all"
+                    style="margin-right:6px;"
+                    ${
+                        displayItems.length > 0 &&
+                        displayItems.every(i =>
+                            selectedItems.has(`${currentTab}::${i}`)
+                        )
+                            ? 'checked'
+                            : ''
+                    }
+                >
+                全选
             </label>
-            <div style="display:flex; gap:6px; align-items:center;">
-                <select id="st-am-batch-move-sel" class="text_pole" style="font-size:0.8em; padding:2px 6px; max-width:140px;">${moveOptionsHtml}</select>
-                <button id="st-am-batch-move-btn" class="menu_button" style="margin:0; padding:4px 8px; font-size:0.8em;">移动</button>
-                <button id="st-am-batch-del-btn" class="menu_button danger" style="margin:0; padding:4px 8px; font-size:0.8em;">移入回收站</button>
-            </div>
+
+            <span
+                style="
+                    font-size:0.8em;
+                    opacity:0.8;
+                    text-align:right;
+                "
+            >
+                ${selectedCountText}
+            </span>
+
         </div>
-    `;
+
+
+        <div
+            style="
+                display:flex;
+                gap:6px;
+                align-items:center;
+                width:100%;
+            "
+        >
+
+            <select
+                id="st-am-batch-move-sel"
+                class="text_pole"
+                style="
+                    flex:1;
+                    min-width:0;
+                    font-size:0.8em;
+                    padding:4px 6px;
+                "
+            >
+                ${moveOptionsHtml}
+            </select>
+
+            <button
+                id="st-am-batch-move-btn"
+                class="menu_button"
+                style="
+                    margin:0;
+                    padding:4px 8px;
+                    font-size:0.8em;
+                    white-space:nowrap;
+                "
+            >
+                移动
+            </button>
+
+            <button
+                id="st-am-batch-del-btn"
+                class="menu_button danger"
+                style="
+                    margin:0;
+                    padding:4px 8px;
+                    font-size:0.8em;
+                    white-space:nowrap;
+                "
+            >
+                移入回收站
+            </button>
+
+        </div>
+
+    </div>
+`;
 
     let itemsListHtml = '';
     if (displayItems.length === 0) {
@@ -569,7 +696,7 @@ const mountUIRoot = () => {
         e.stopPropagation();
         currentTab = $(this).data("tab");
         currentFilterCat = 'all';
-        selectedItems.clear();
+        
         renderModalUI();
     });
 
@@ -666,15 +793,39 @@ const mountUIRoot = () => {
     renderModalUI();
 });
 
-    $(document).off("change.stAmSelectAll").on("change.stAmSelectAll", "#st-am-select-all", function() {
+    $(document).off("change.stAmSelectAll").on(
+    "change.stAmSelectAll",
+    "#st-am-select-all",
+    function(e) {
+
+        e.preventDefault();
+        e.stopPropagation();
+
         const isChecked = $(this).is(':checked');
+
         $('.st-am-item-cb').each(function() {
+
             $(this).prop('checked', isChecked);
+
             const name = String($(this).data("name"));
-            if (isChecked) selectedItems.add(name);
-            else selectedItems.delete(name);
+            const type = String($(this).data("type"));
+
+            const itemKey = `${type}::${name}`;
+
+            if (isChecked) {
+
+                selectedItems.add(itemKey);
+
+            } else {
+
+                selectedItems.delete(itemKey);
+
+            }
         });
-    });
+
+        renderModalUI();
+    }
+);
 
     $(document).off("click.stAmBatchMove").on("click.stAmBatchMove", "#st-am-batch-move-btn", function(e) {
     e.preventDefault();
