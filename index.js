@@ -1285,7 +1285,20 @@ const injectButtons = () => {
 
 if (worldBox.length && !$('#st-am-btn-world').length) {
 
-    // 暂时禁用世界书按钮注入，用于排查 World Info 布局问题
+    worldBox.parent().prepend(`
+        <div id="st-am-btn-world"
+        class="menu_button st-am-native-btn"
+        style="
+        width:100%;
+        margin:8px 0;
+        box-sizing:border-box;
+        display:flex;
+        justify-content:center;
+        align-items:center;">
+            ${SVG.book}
+            批量管理世界书
+        </div>
+    `);
 
 }
 
@@ -1343,15 +1356,48 @@ if (worldBox.length && !$('#st-am-btn-world').length) {
 
 };
 
-/*
 jQuery(async () => {
-
     mountUIRoot();
 
-    // 这里原本所有初始化代码
+    $(document).off("click.stAmBtn").on("click.stAmBtn", "#st-am-btn-preset", function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        openManagerModal('preset', 'preset');
+    });
 
+    $(document).off("click.stAmWorldBtn").on("click.stAmWorldBtn", "#st-am-btn-world", function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        openManagerModal('world', 'world');
+    });
+
+   $(document)
+    .off("click.stAmMagicBtn")
+    .on(
+        "click.stAmMagicBtn",
+        "#st-am-btn-magic",
+        function(e) {
+
+            e.preventDefault();
+            e.stopPropagation();
+
+            // 魔法棒入口：允许查看全部资源
+            openManagerModal('world', 'all');
+
+            $(this)
+                .closest(
+                    'div[style*="position"], .popup, .dropdown'
+                )
+                .hide();
+        }
+    );
+
+    setInterval(injectButtons, 500);
+
+
+eventSource.on(event_types.APP_READY, () => {
+    injectButtons();
 });
-*/
 
 eventSource.on(event_types.WORLDINFO_SETTINGS_UPDATED, () => {
     setTimeout(() => {
