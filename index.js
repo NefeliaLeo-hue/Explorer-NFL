@@ -49,7 +49,11 @@ const SVG = {
 
 let currentTab = 'world';
 let currentFilterCat = 'all';
-let selectedItemNames = new Set();
+
+// 保存当前勾选的资源。
+// 使用「类型::名称」作为唯一标识，
+// 避免世界书和预设同名时发生冲突。
+let selectedItems = new Set();
 
 // all = 可以查看世界书和预设
 // world = 只能查看世界书和回收站
@@ -494,7 +498,7 @@ if (!Array.isArray(categoriesList)) {
     const batchBarHtml = `
         <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(128,128,128,0.12); padding:8px 10px; border-radius:6px; margin-bottom:8px;">
             <label style="display:flex; align-items:center; cursor:pointer; font-size:0.85em; margin:0;">
-                <input type="checkbox" id="st-am-select-all" style="margin-right:6px;" ${displayItems.length > 0 && displayItems.every(i => selectedItemNames.has(i)) ? 'checked' : ''}> 全选
+                <input type="checkbox" id="st-am-select-all" style="margin-right:6px;" ${displayItems.length > 0 && displayItems.every(i => selectedItems.has(i)) ? 'checked' : ''}> 全选
             </label>
             <div style="display:flex; gap:6px; align-items:center;">
                 <select id="st-am-batch-move-sel" class="text_pole" style="font-size:0.8em; padding:2px 6px; max-width:140px;">${moveOptionsHtml}</select>
@@ -509,12 +513,13 @@ if (!Array.isArray(categoriesList)) {
         itemsListHtml = `<div style="text-align:center; padding:35px 0; opacity:0.6; font-size:0.9em;">暂无条目，请点击上方“重新扫描”获取系统列表</div>`;
     } else {
         displayItems.forEach(name => {
-            const checked = selectedItemNames.has(name) ? 'checked' : '';
+            const itemKey = `${currentTab}::${name}`;
+            const checked = selectedItems.has(itemKey) ? 'checked' : '';
             const currentCat = itemMap[name] || '未分类';
             itemsListHtml += `
                 <label style="display:flex; justify-content:space-between; align-items:center; padding:8px 10px; margin-bottom:4px; border-radius:6px; background:rgba(128,128,128,0.06); cursor:pointer;">
                     <div style="display:flex; align-items:center; overflow:hidden; padding-right:10px;">
-                        <input type="checkbox" class="st-am-item-cb" data-name="${name}" ${checked} style="margin-right:8px;">
+                        <input type="checkbox" class="st-am-item-cb" data-name="${name}" data-type="${currentTab}" ${checked} style="margin-right:8px;">
                         <span style="font-size:0.9em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${name}</span>
                     </div>
                     <span style="font-size:0.75em; opacity:0.7; padding:2px 6px; border-radius:4px; background:rgba(0,0,0,0.15); flex-shrink:0;">${currentCat}</span>
@@ -564,7 +569,7 @@ const mountUIRoot = () => {
         e.stopPropagation();
         currentTab = $(this).data("tab");
         currentFilterCat = 'all';
-        selectedItemNames.clear();
+        selectedItems.clear();
         renderModalUI();
     });
 
@@ -572,7 +577,7 @@ const mountUIRoot = () => {
         e.preventDefault();
         e.stopPropagation();
         currentFilterCat = String($(this).data("cat"));
-        selectedItemNames.clear();
+        selectedItems.clear();
         renderModalUI();
     });
 
@@ -643,52 +648,219 @@ const mountUIRoot = () => {
         }
     });
 
-    $(document).off("change.stAmItemCb").on("change.stAmItemCb", ".st-am-item-cb", function() {
-        const name = String($(this).data("name"));
-        if ($(this).is(':checked')) selectedItemNames.add(name);
-        else selectedItemNames.delete(name);
-    });
+    $(document).off("change.stAmItemCb").on("change.stAmItemCb", ".st-am-item-cb", function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const name = $(this).data('name');
+    const type = $(this).data('type');
+
+    const itemKey = `${type}::${name}`;
+
+    if ($(this).is(':checked')) {
+        selectedItems.add(itemKey);
+    } else {
+        selectedItems.delete(itemKey);
+    }
+
+    renderModalUI();
+});
 
     $(document).off("change.stAmSelectAll").on("change.stAmSelectAll", "#st-am-select-all", function() {
         const isChecked = $(this).is(':checked');
         $('.st-am-item-cb').each(function() {
             $(this).prop('checked', isChecked);
             const name = String($(this).data("name"));
-            if (isChecked) selectedItemNames.add(name);
-            else selectedItemNames.delete(name);
+            if (isChecked) selectedItems.add(name);
+            else selectedItems.delete(name);
         });
     });
 
     $(document).off("click.stAmBatchMove").on("click.stAmBatchMove", "#st-am-batch-move-btn", function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        if (selectedItemNames.size === 0) return typeof toastr !== 'undefined' ? toastr.warning('请先勾选需要移动的项目') : null;
-        const targetCat = $("#st-am-batch-move-sel").val();
-        const targetMap = currentTab === 'world' ? settings.worldMap : settings.presetsMap;
-        selectedItemNames.forEach(name => { targetMap[name] = targetCat; });
-        selectedItemNames.clear();
-        saveSettingsDebounced();
-        renderModalUI();
-        if (typeof toastr !== 'undefined') toastr.success('已完成批量移动！');
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (selectedItems.size === 0) {
+        if (typeof toastr !== 'undefined') {
+            toastr.warning('请先勾选需要移动的项目');
+        }
+        return;
+    }
+
+    // 当前分类移动只允许处理同一种资源。
+    // 世界书和预设混合选择时，不执行分类移动，
+    // 避免把资源移动到错误的分类表里。
+    const selectedTypes = new Set();
+
+    selectedItems.forEach(itemKey => {
+        const separatorIndex = itemKey.indexOf('::');
+
+        if (separatorIndex === -1) {
+            return;
+        }
+
+        const type = itemKey.substring(0, separatorIndex);
+        selectedTypes.add(type);
     });
 
-    $(document).off("click.stAmBatchDel").on("click.stAmBatchDel", "#st-am-batch-del-btn", function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        if (selectedItemNames.size === 0) return typeof toastr !== 'undefined' ? toastr.warning('请先勾选要删除的项目') : null;
-        const targetMap = currentTab === 'world' ? settings.worldMap : settings.presetsMap;
-        selectedItemNames.forEach(name => {
-            settings.recycleBin.push({
-                type: currentTab,
-                name: name,
-                oldCat: targetMap[name] || ''
-            });
-        });
-        selectedItemNames.clear();
-        saveSettingsDebounced();
-        renderModalUI();
-        if (typeof toastr !== 'undefined') toastr.warning('已移入回收站');
+    if (selectedTypes.size > 1) {
+        if (typeof toastr !== 'undefined') {
+            toastr.warning(
+                '当前同时选择了世界书和预设。\n\n' +
+                '分类移动一次只能处理一种资源，' +
+                '请分别移动。'
+            );
+        }
+        return;
+    }
+
+    const targetCat = $("#st-am-batch-move-sel").val();
+
+    const onlyType = [...selectedTypes][0];
+
+    if (onlyType !== 'world' && onlyType !== 'preset') {
+        if (typeof toastr !== 'undefined') {
+            toastr.warning('无法识别所选资源类型');
+        }
+        return;
+    }
+
+    const targetMap =
+        onlyType === 'world'
+            ? settings.worldMap
+            : settings.presetsMap;
+
+    selectedItems.forEach(itemKey => {
+
+        const separatorIndex = itemKey.indexOf('::');
+
+        if (separatorIndex === -1) {
+            return;
+        }
+
+        const type = itemKey.substring(0, separatorIndex);
+        const name = itemKey.substring(separatorIndex + 2);
+
+        // 双重保险：
+        // 只有当前类型的资源才允许进入对应分类表。
+        if (type === onlyType) {
+            targetMap[name] = targetCat;
+        }
     });
+
+    selectedItems.clear();
+
+    saveSettingsDebounced();
+    renderModalUI();
+
+    if (typeof toastr !== 'undefined') {
+        toastr.success('已完成批量移动！');
+    }
+});
+
+
+$(document).off("click.stAmBatchDel").on("click.stAmBatchDel", "#st-am-batch-del-btn", function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (selectedItems.size === 0) {
+        if (typeof toastr !== 'undefined') {
+            toastr.warning('请先勾选要移入回收站的项目');
+        }
+        return;
+    }
+
+    // 统计当前选择的资源类型。
+    let worldCount = 0;
+    let presetCount = 0;
+
+    selectedItems.forEach(itemKey => {
+
+        const separatorIndex = itemKey.indexOf('::');
+
+        if (separatorIndex === -1) {
+            return;
+        }
+
+        const type = itemKey.substring(0, separatorIndex);
+
+        if (type === 'world') {
+            worldCount++;
+        } else if (type === 'preset') {
+            presetCount++;
+        }
+    });
+
+
+    // =========================
+    // 二次确认
+    // =========================
+
+    let summary = '确定将以下资源移入回收站吗？\n\n';
+
+    if (worldCount > 0) {
+        summary += `世界书：${worldCount} 个\n`;
+    }
+
+    if (presetCount > 0) {
+        summary += `预设：${presetCount} 个\n`;
+    }
+
+    summary +=
+        `\n共计：${worldCount + presetCount} 个\n\n` +
+        '移入回收站后仍然可以恢复。';
+
+
+    if (!confirm(summary)) {
+        return;
+    }
+
+
+    // =========================
+    // 将选中的资源写入回收站
+    // =========================
+
+    selectedItems.forEach(itemKey => {
+
+        const separatorIndex = itemKey.indexOf('::');
+
+        if (separatorIndex === -1) {
+            return;
+        }
+
+        const type = itemKey.substring(0, separatorIndex);
+        const name = itemKey.substring(separatorIndex + 2);
+
+        let targetMap;
+
+        if (type === 'world') {
+            targetMap = settings.worldMap;
+        } else if (type === 'preset') {
+            targetMap = settings.presetsMap;
+        } else {
+            return;
+        }
+
+        settings.recycleBin.push({
+            type: type,
+            name: name,
+            oldCat: targetMap[name] || ''
+        });
+    });
+
+
+    selectedItems.clear();
+
+    saveSettingsDebounced();
+    renderModalUI();
+
+
+    if (typeof toastr !== 'undefined') {
+        toastr.warning(
+            `已将 ${worldCount + presetCount} 个资源移入回收站`
+        );
+    }
+});
 
     $(document).off("click.stAmRestore").on("click.stAmRestore", ".st-am-restore-btn", function(e) {
         e.preventDefault();
@@ -879,7 +1051,7 @@ const openManagerModal = (targetTab = 'world', scope = 'all') => {
         currentTab = targetTab;
 
         // 每次打开面板时清空之前选中的项目
-        selectedItemNames.clear();
+        selectedItems.clear();
 
         console.log("[Explorer-NFL] managerScope:", managerScope);
         console.log("[Explorer-NFL] currentTab:", currentTab);
