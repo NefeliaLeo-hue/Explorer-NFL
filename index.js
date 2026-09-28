@@ -1285,7 +1285,7 @@ const injectButtons = () => {
 
     if (worldBox.length && !$('#st-am-btn-world').length) {
 
-        worldBox.prepend(`
+        worldBox.parent().prepend(`
             <div id="st-am-btn-world"
             class="menu_button st-am-native-btn"
             style="
