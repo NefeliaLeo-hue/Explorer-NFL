@@ -1,5 +1,6 @@
 import { getContext, extension_settings } from '/scripts/extensions.js';
 import { saveSettingsDebounced, eventSource, event_types } from '/script.js';
+import { deleteWorldInfo } from '/scripts/world-info.js';
 
 const extName = "Explorer-NFL";
 
@@ -703,16 +704,158 @@ const mountUIRoot = () => {
         }
     });
 
-    $(document).off("click.stAmEmptyRecycle").on("click.stAmEmptyRecycle", "#st-am-empty-recycle-btn", function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        if (confirm("⚠️ 确定彻底清空回收站吗？此操作无法恢复！")) {
-            settings.recycleBin = [];
-            saveSettingsDebounced();
-            renderModalUI();
-            if (typeof toastr !== 'undefined') toastr.error('回收站已彻底清空');
+    $(document).off("click.stAmEmptyRecycle").on("click.stAmEmptyRecycle", "#st-am-empty-recycle-btn", async function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (settings.recycleBin.length === 0) {
+        return;
+    }
+
+    const confirmed = confirm(
+        "⚠️ 确定彻底清空回收站吗？\n\n" +
+        "这里的文件将被从 SillyTavern 中永久删除。\n" +
+        "删除后无法通过本插件恢复。\n\n" +
+        "确定要继续吗？"
+    );
+
+    if (!confirmed) {
+        return;
+    }
+
+    const recycleItems = [...settings.recycleBin];
+
+    let successCount = 0;
+    let failedItems = [];
+
+    for (const item of recycleItems) {
+
+        try {
+
+            // =========================
+            // 删除世界书
+            // =========================
+            if (item.type === 'world') {
+
+                const result = await deleteWorldInfo(item.name);
+
+                if (result === false) {
+                    throw new Error(`世界书删除失败：${item.name}`);
+                }
+
+                delete settings.worldMap[item.name];
+
+                successCount++;
+            }
+
+
+            // =========================
+            // 删除 OpenAI / Chat Completion 预设
+            // =========================
+            else if (item.type === 'preset') {
+
+                const response = await fetch('/api/presets/delete-openai', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        name: item.name
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(
+                        `预设删除失败：${item.name}（HTTP ${response.status}）`
+                    );
+                }
+
+                delete settings.presetsMap[item.name];
+
+                // 如果原生预设下拉框里还有这个项目，
+                // 顺便从页面上移除。
+                $(
+                    '#settings_preset_openai option, ' +
+                    '#openai_preset option, ' +
+                    '#chat_completion_preset option'
+                ).filter(function() {
+                    return $(this).text().trim() === item.name;
+                }).remove();
+
+                successCount++;
+            }
+
+
+            // =========================
+            // 未知类型
+            // =========================
+            else {
+
+                throw new Error(
+                    `未知资源类型：${item.type}`
+                );
+            }
+
+        } catch (err) {
+
+            console.error(
+                '[Explorer-NFL] 永久删除资源失败:',
+                item,
+                err
+            );
+
+            failedItems.push(item);
         }
-    });
+    }
+
+
+    // =========================
+    // 只从回收站移除真正删除成功的项目
+    // =========================
+
+    const failedSet = new Set(
+        failedItems.map(item =>
+            `${item.type}::${item.name}`
+        )
+    );
+
+    settings.recycleBin = settings.recycleBin.filter(item =>
+        failedSet.has(`${item.type}::${item.name}`)
+    );
+
+
+    saveSettingsDebounced();
+
+    // 重新扫描一次真实资源
+    scanResources();
+
+    renderModalUI();
+
+
+    // =========================
+    // 删除结果提示
+    // =========================
+
+    if (failedItems.length === 0) {
+
+        if (typeof toastr !== 'undefined') {
+            toastr.success(
+                `已永久删除 ${successCount} 个资源。`
+            );
+        }
+
+    } else {
+
+        if (typeof toastr !== 'undefined') {
+            toastr.warning(
+                `已删除 ${successCount} 个资源，` +
+                `${failedItems.length} 个资源删除失败，` +
+                `仍保留在回收站。`
+            );
+        }
+
+    }
+});
 
     $(document).off("click.stAmRescan").on("click.stAmRescan", "#st-am-rescan-btn", function(e) {
         e.preventDefault();
