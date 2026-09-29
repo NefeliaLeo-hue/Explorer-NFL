@@ -1,5 +1,5 @@
 import { getContext, extension_settings } from '/scripts/extensions.js';
-import { saveSettingsDebounced, eventSource, event_types } from '/script.js';
+import {saveSettingsDebounced,eventSource,event_types,getRequestHeaders} from '/script.js';
 import { deleteWorldInfo } from '/scripts/world-info.js';
 
 const extName = "Explorer-NFL";
@@ -1587,17 +1587,16 @@ $(document).off("click.stAmBatchDel").on(
             else if (item.type === 'preset') {
 
                 const response = await fetch(
-                    '/api/presets/delete-openai',
-                    {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            name: item.name
-                        })
-                    }
-                );
+    '/api/presets/delete',
+    {
+        method: 'POST',
+        headers: getRequestHeaders(),
+        body: JSON.stringify({
+            apiId: 'openai',
+            name: item.name
+        })
+    }
+);
 
                 if (!response.ok) {
                     throw new Error(
