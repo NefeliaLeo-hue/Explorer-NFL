@@ -1524,7 +1524,11 @@ $(document).off("click.stAmBatchDel").on(
 });
     
 
-    $(document).off("click.stAmEmptyRecycle").on("click.stAmEmptyRecycle", "#st-am-empty-recycle-btn", async function(e) {
+    $(document).off("click.stAmEmptyRecycle").on(
+    "click.stAmEmptyRecycle",
+    "#st-am-empty-recycle-btn",
+    async function(e) {
+
     e.preventDefault();
     e.stopPropagation();
 
@@ -1534,7 +1538,7 @@ $(document).off("click.stAmBatchDel").on(
 
     const confirmed = confirm(
         "⚠️ 确定彻底清空回收站吗？\n\n" +
-        "这里的文件将被从 SillyTavern 中永久删除。\n" +
+        "这里的资源将被从 SillyTavern 中永久删除。\n" +
         "删除后无法通过本插件恢复。\n\n" +
         "确定要继续吗？"
     );
@@ -1543,6 +1547,9 @@ $(document).off("click.stAmBatchDel").on(
         return;
     }
 
+
+    // 保存本次操作时的回收站快照。
+    // 后面的删除全部基于这个快照进行。
     const recycleItems = [...settings.recycleBin];
 
     let successCount = 0;
@@ -1555,12 +1562,16 @@ $(document).off("click.stAmBatchDel").on(
             // =========================
             // 删除世界书
             // =========================
+
             if (item.type === 'world') {
 
-                const result = await deleteWorldInfo(item.name);
+                const result =
+                    await deleteWorldInfo(item.name);
 
                 if (result === false) {
-                    throw new Error(`世界书删除失败：${item.name}`);
+                    throw new Error(
+                        `世界书删除失败：${item.name}`
+                    );
                 }
 
                 delete settings.worldMap[item.name];
@@ -1572,17 +1583,21 @@ $(document).off("click.stAmBatchDel").on(
             // =========================
             // 删除 OpenAI / Chat Completion 预设
             // =========================
+
             else if (item.type === 'preset') {
 
-                const response = await fetch('/api/presets/delete-openai', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        name: item.name
-                    })
-                });
+                const response = await fetch(
+                    '/api/presets/delete-openai',
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            name: item.name
+                        })
+                    }
+                );
 
                 if (!response.ok) {
                     throw new Error(
@@ -1598,9 +1613,121 @@ $(document).off("click.stAmBatchDel").on(
                     '#settings_preset_openai option, ' +
                     '#openai_preset option, ' +
                     '#chat_completion_preset option'
-                ).filter(function() {
-                    return $(this).text().trim() === item.name;
-                }).remove();
+                )
+                    .filter(function() {
+                        return $(this).text().trim() === item.name;
+                    })
+                    .remove();
+
+                successCount++;
+            }
+
+
+            // =========================
+            // 删除 Connection Profile / API
+            // =========================
+
+            else if (item.type === 'api') {
+
+                // API 永远使用 Profile ID 定位。
+                //
+                // 不使用 item.name 查找。
+                // item.name 仅用于界面显示。
+
+                if (!item.id) {
+                    throw new Error(
+                        `API Profile 缺少 ID：${item.name}`
+                    );
+                }
+
+                const profiles =
+                    extension_settings
+                        .connectionManager
+                        ?.profiles;
+
+                if (!Array.isArray(profiles)) {
+                    throw new Error(
+                        '无法访问 Connection Manager 的 Profile 列表'
+                    );
+                }
+
+                const profileIndex =
+                    profiles.findIndex(
+                        profile =>
+                            String(profile.id) ===
+                            String(item.id)
+                    );
+
+                // 找不到原 Profile 时，不删除任何其他 Profile。
+                if (profileIndex === -1) {
+
+                    throw new Error(
+                        `找不到 Connection Profile：${item.name} ` +
+                        `(ID: ${item.id})`
+                    );
+                }
+
+                // 保存被删除的 Profile 引用，
+                // 仅用于发送官方删除事件。
+                // 注意：
+                // 这里不会读取、复制或保存 API Key、
+                // secret-id、api-url 等敏感字段。
+                const deletedProfile =
+                    profiles[profileIndex];
+
+
+                // =========================
+                // 删除 Profile
+                // =========================
+
+                profiles.splice(
+                    profileIndex,
+                    1
+                );
+
+                // 如果删除的是当前正在使用的 Profile，
+                // 清空当前选中的 Profile。
+                const selectedProfile =
+                    extension_settings
+                        .connectionManager
+                        ?.selectedProfile;
+
+                if (
+                    String(selectedProfile) ===
+                    String(item.id)
+                ) {
+
+                    extension_settings
+                        .connectionManager
+                        .selectedProfile = null;
+                }
+
+
+                // 保存 Connection Manager 设置。
+                saveSettingsDebounced();
+
+                // 通知 Connection Manager：
+                // Profile 已被删除。
+                //
+                // 使用当前 ST 的事件系统。
+                if (
+                    typeof eventSource !== 'undefined' &&
+                    typeof event_types !== 'undefined' &&
+                    event_types.CONNECTION_PROFILE_DELETED
+                ) {
+
+                    eventSource.emit(
+                        event_types.CONNECTION_PROFILE_DELETED,
+                        deletedProfile
+                    );
+
+                }
+
+
+                // Explorer 自己的 API 分类映射也删除。
+                delete settings.apiMap[
+                    String(item.id)
+                ];
 
                 successCount++;
             }
@@ -1609,12 +1736,13 @@ $(document).off("click.stAmBatchDel").on(
             // =========================
             // 未知类型
             // =========================
-            else {
 
+            else {
                 throw new Error(
                     `未知资源类型：${item.type}`
                 );
             }
+
 
         } catch (err) {
 
@@ -1634,20 +1762,48 @@ $(document).off("click.stAmBatchDel").on(
     // =========================
 
     const failedSet = new Set(
-        failedItems.map(item =>
-            `${item.type}::${item.name}`
-        )
+        failedItems.map(item => {
+
+            if (item.type === 'api') {
+
+                return (
+                    `api::${String(item.id)}`
+                );
+
+            }
+
+            return (
+                `${item.type}::${item.name}`
+            );
+        })
     );
 
-    settings.recycleBin = settings.recycleBin.filter(item =>
-        failedSet.has(`${item.type}::${item.name}`)
-    );
+    settings.recycleBin =
+        settings.recycleBin.filter(item => {
+
+            let key;
+
+            if (item.type === 'api') {
+
+                key =
+                    `api::${String(item.id)}`;
+
+            } else {
+
+                key =
+                    `${item.type}::${item.name}`;
+            }
+
+            return failedSet.has(key);
+        });
 
 
     saveSettingsDebounced();
 
-    // 重新扫描一次真实资源
+
+    // 重新扫描真实资源
     scanResources();
+    scanAPIProfiles();
 
     renderModalUI();
 
@@ -1659,6 +1815,7 @@ $(document).off("click.stAmBatchDel").on(
     if (failedItems.length === 0) {
 
         if (typeof toastr !== 'undefined') {
+
             toastr.success(
                 `已永久删除 ${successCount} 个资源。`
             );
@@ -1667,16 +1824,18 @@ $(document).off("click.stAmBatchDel").on(
     } else {
 
         if (typeof toastr !== 'undefined') {
+
             toastr.warning(
                 `已删除 ${successCount} 个资源，` +
                 `${failedItems.length} 个资源删除失败，` +
                 `仍保留在回收站。`
             );
         }
-
     }
+
 });
 
+    
     $(document).off("click.stAmRescan").on("click.stAmRescan", "#st-am-rescan-btn", function(e) {
         e.preventDefault();
         e.stopPropagation();
