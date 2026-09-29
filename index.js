@@ -470,7 +470,14 @@ const renderModalUI = () => {
             recycleListHtml = `<div style="text-align:center; padding:35px 0; opacity:0.6;">回收站空空如也</div>`;
         } else {
             settings.recycleBin.forEach((item, idx) => {
-                const typeLabel = item.type === 'world' ? '世界书' : '预设';
+                const typeLabel =
+    item.type === 'world'
+        ? '世界书'
+        : item.type === 'preset'
+            ? '预设'
+            : item.type === 'api'
+                ? 'API'
+                : '未知';
                 recycleListHtml += `
                     <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 12px; margin-bottom:6px; background:rgba(128,128,128,0.1); border-radius:6px;">
                         <div>
@@ -1186,20 +1193,31 @@ if (onlyType === 'world') {
 });
 
 
-$(document).off("click.stAmBatchDel").on("click.stAmBatchDel", "#st-am-batch-del-btn", function(e) {
+$(document).off("click.stAmBatchDel").on(
+    "click.stAmBatchDel",
+    "#st-am-batch-del-btn",
+    function(e) {
+
     e.preventDefault();
     e.stopPropagation();
 
     if (selectedItems.size === 0) {
+
         if (typeof toastr !== 'undefined') {
             toastr.warning('请先勾选要移入回收站的项目');
         }
+
         return;
     }
 
-    // 统计当前选择的资源类型。
+
+    // =========================
+    // 统计所有资源类型
+    // =========================
+
     let worldCount = 0;
     let presetCount = 0;
+    let apiCount = 0;
 
     selectedItems.forEach(itemKey => {
 
@@ -1213,95 +1231,298 @@ $(document).off("click.stAmBatchDel").on("click.stAmBatchDel", "#st-am-batch-del
 
         if (type === 'world') {
             worldCount++;
+
         } else if (type === 'preset') {
             presetCount++;
+
+        } else if (type === 'api') {
+            apiCount++;
         }
+
     });
 
+    const totalCount =
+        worldCount +
+        presetCount +
+        apiCount;
+        
 
     // =========================
     // 二次确认
     // =========================
 
-    let summary = '确定将以下资源移入回收站吗？\n\n';
+    let summary =
+        '确定将以下资源移入回收站吗？\n\n';
 
     if (worldCount > 0) {
-        summary += `世界书：${worldCount} 个\n`;
+
+        summary +=
+            `世界书：${worldCount} 个\n`;
     }
 
     if (presetCount > 0) {
-        summary += `预设：${presetCount} 个\n`;
+
+        summary +=
+            `预设：${presetCount} 个\n`;
+    }
+
+    if (apiCount > 0) {
+
+        summary +=
+            `API：${apiCount} 个\n`;
     }
 
     summary +=
-        `\n共计：${worldCount + presetCount} 个\n\n` +
+        `\n共计：${totalCount} 个\n\n` +
         '移入回收站后仍然可以恢复。';
-
-
+        
     if (!confirm(summary)) {
         return;
     }
 
 
     // =========================
-    // 将选中的资源写入回收站
+    // 写入回收站
     // =========================
 
     selectedItems.forEach(itemKey => {
 
-        const separatorIndex = itemKey.indexOf('::');
+        const separatorIndex =
+            itemKey.indexOf('::');
 
         if (separatorIndex === -1) {
             return;
         }
 
-        const type = itemKey.substring(0, separatorIndex);
-        const name = itemKey.substring(separatorIndex + 2);
+        const type =
+            itemKey.substring(0, separatorIndex);
 
-        let targetMap;
+        const name =
+            itemKey.substring(separatorIndex + 2);
+
+        
+        // =========================
+        // 世界书
+        // =========================
 
         if (type === 'world') {
-            targetMap = settings.worldMap;
-        } else if (type === 'preset') {
-            targetMap = settings.presetsMap;
-        } else {
+
+            const targetMap =
+                settings.worldMap;
+
+            settings.recycleBin.push({
+
+                type: 'world',
+
+                name: name,
+
+                oldCat:
+                    targetMap[name] || ''
+
+            });
+
             return;
         }
 
-        settings.recycleBin.push({
-            type: type,
-            name: name,
-            oldCat: targetMap[name] || ''
-        });
+
+        // =========================
+        // 预设
+        // =========================
+
+        if (type === 'preset') {
+
+            const targetMap =
+                settings.presetsMap;
+
+            settings.recycleBin.push({
+
+                type: 'preset',
+
+                name: name,
+
+                oldCat:
+                    targetMap[name] || ''
+
+            });
+
+            return;
+        }
+
+
+        // =========================
+        // API / Connection Profile
+        // =========================
+
+        if (type === 'api') {
+
+            const targetMap =
+                settings.apiMap;
+
+            // API 的内部唯一标识是 Profile ID。
+            //
+            // name 在这里是 selectedItems 里的 Profile ID。
+            // 真正显示给用户的名称需要从当前 Profile的非敏感字段 name 获取。
+            
+            const profile =
+                extension_settings
+                    .connectionManager
+                    ?.profiles
+                    ?.find(
+                        p =>
+                            String(p.id) === String(name)
+                    );
+
+
+            const profileName =
+                profile?.name
+                    ? String(profile.name)
+                    : String(name);
+
+
+            settings.recycleBin.push({
+
+                type: 'api',
+
+                // 永远使用 Profile ID 作为唯一标识
+                id: String(name),
+
+                // 这里只保存显示名称
+                name: profileName,
+
+                // 保存原来的分类
+                oldCat:
+                    targetMap[name] || ''
+
+            });
+
+
+            return;
+        }
+
     });
 
 
     selectedItems.clear();
 
     saveSettingsDebounced();
+
+    renderModalUI();
+        
+
+    if (typeof toastr !== 'undefined') {
+
+        toastr.warning(
+            `已将 ${totalCount} 个资源移入回收站`
+        );
+
+    }
+
+});
+    
+
+    $(document).off("click.stAmRestore").on(
+    "click.stAmRestore",
+    ".st-am-restore-btn",
+    function(e) {
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    const idx =
+        parseInt(
+            $(this).data("idx"),
+            10
+        );
+
+    if (
+        isNaN(idx) ||
+        !settings.recycleBin[idx]
+    ) {
+        return;
+    }
+
+    const item =
+        settings.recycleBin[idx];
+
+
+    // =========================
+    // 世界书
+    // =========================
+
+    if (item.type === 'world') {
+
+        settings.worldMap[item.name] =
+            item.oldCat || '';
+    }
+
+
+    // =========================
+    // 预设
+    // =========================
+
+    else if (item.type === 'preset') {
+        
+        settings.presetsMap[item.name] =
+            item.oldCat || '';
+    }
+
+
+    // =========================
+    // API
+    // =========================
+
+    else if (item.type === 'api') {
+        
+        // API 必须使用 Profile ID
+        // 作为 apiMap 的 key。
+
+        if (item.id) {
+            settings.apiMap[String(item.id)] =
+                item.oldCat || '';
+        }
+
+    }
+
+
+    // =========================
+    // 未知类型
+    // =========================
+
+    else {
+        if (typeof toastr !== 'undefined') {
+            toastr.error(
+                `无法恢复未知资源类型：${item.type}`
+            );
+
+        }
+        return;
+    }
+
+
+    settings.recycleBin.splice(idx, 1);
+
+
+    saveSettingsDebounced();
+
+
+    // 重新扫描真实资源
+    scanResources();
+    scanAPIProfiles();
+
+
     renderModalUI();
 
 
     if (typeof toastr !== 'undefined') {
-        toastr.warning(
-            `已将 ${worldCount + presetCount} 个资源移入回收站`
-        );
-    }
-});
 
-    $(document).off("click.stAmRestore").on("click.stAmRestore", ".st-am-restore-btn", function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        const idx = parseInt($(this).data("idx"), 10);
-        if (!isNaN(idx) && settings.recycleBin[idx]) {
-            const item = settings.recycleBin.splice(idx, 1)[0];
-            const targetMap = item.type === 'world' ? settings.worldMap : settings.presetsMap;
-            targetMap[item.name] = item.oldCat || '';
-            saveSettingsDebounced();
-            renderModalUI();
-            if (typeof toastr !== 'undefined') toastr.success(`已还原: ${item.name}`);
-        }
-    });
+        toastr.success(
+            `已还原: ${item.name}`
+        );
+
+    }
+
+});
+    
 
     $(document).off("click.stAmEmptyRecycle").on("click.stAmEmptyRecycle", "#st-am-empty-recycle-btn", async function(e) {
     e.preventDefault();
