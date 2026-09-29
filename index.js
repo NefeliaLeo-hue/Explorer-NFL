@@ -299,7 +299,160 @@ const scanAPIProfiles = () => {
     saveSettingsDebounced();
 };
 
-const renderModalUI = () => {
+
+// =========================
+// 同步原生 Connection Profile UI
+// =========================
+//
+// Explorer 会直接修改
+// extension_settings.connectionManager.profiles。
+// Connection Manager 自己的 renderConnectionProfiles()
+// 是内部私有函数，第三方扩展无法直接调用。
+//
+// 因此这里只同步原生 UI：
+// 1. Profile 下拉框
+// 2. Update / Reload / Delete 按钮状态
+//
+// 不读取或修改任何 API Key / Secret / URL。
+// =========================
+
+const syncConnectionProfileUI = (
+    deletedSelectedProfile = false
+) => {
+    const profilesSelect =
+        document.getElementById(
+            'connection_profiles'
+        );
+
+    if (!profilesSelect) {
+        return;
+    }
+
+    const connectionManager =
+        extension_settings.connectionManager;
+
+    if (!connectionManager) {
+        return;
+    }
+
+    const profiles =
+        Array.isArray(connectionManager.profiles)
+            ? connectionManager.profiles
+            : [];
+
+    const selectedProfile =
+        connectionManager.selectedProfile;
+
+
+    // =========================
+    // 重建 Profile 下拉框
+    // =========================
+
+    profilesSelect.innerHTML = '';
+
+    // <None>
+    const noneOption =
+        document.createElement('option');
+
+    noneOption.value = '';
+    noneOption.textContent = '<None>';
+
+    noneOption.selected =
+        !selectedProfile;
+
+    profilesSelect.appendChild(
+        noneOption
+    );
+
+    // 与 ST 原生 renderConnectionProfiles()
+    // 相同：按照 Profile 名称排序。
+    //
+    // 使用 slice()，不直接修改
+    // Connection Manager 的 profiles 数组。
+    profiles
+        .slice()
+        .sort(
+            (a, b) =>
+                String(a.name || '')
+                    .localeCompare(
+                        String(b.name || '')
+                    )
+        )
+        .forEach(profile => {
+
+            const option =
+                document.createElement(
+                    'option'
+                );
+
+            option.value =
+                String(profile.id);
+
+            option.textContent =
+                String(profile.name || '');
+
+            option.selected =
+                String(profile.id) ===
+                String(selectedProfile);
+
+            profilesSelect.appendChild(
+                option
+            );
+        });
+
+
+    // =========================
+    // 同步原生按钮状态
+    // =========================
+
+    const profileSpecificButtons = [
+        'update_connection_profile',
+        'reload_connection_profile',
+        'delete_connection_profile'
+    ];
+
+    profileSpecificButtons.forEach(id => {
+
+        const button =
+            document.getElementById(id);
+
+        if (!button) {
+            return;
+        }
+
+        button.classList.toggle(
+            'disabled',
+            !selectedProfile
+        );
+    });
+
+
+    // =========================
+    // 如果删除的是当前 Profile
+    // =========================
+    //
+    // 让 Connection Manager 自己的
+    // change handler 处理：
+    //
+    // selectedProfile = null
+    // → renderDetailsContent()
+    // → CONNECTION_PROFILE_LOADED("<None>")
+    //
+    // 不手动复制这些内部逻辑。
+    //
+
+    if (deletedSelectedProfile) {
+
+        profilesSelect.value = '';
+
+        profilesSelect.dispatchEvent(
+            new Event('change')
+        );
+    }
+};
+
+
+    const renderModalUI = () => {
     const body = $('#st-am-content-body');
 
     if (!body.length) {
@@ -1554,6 +1707,8 @@ $(document).off("click.stAmBatchDel").on(
 
     let successCount = 0;
     let failedItems = [];
+// 本次批量删除中，是否删除了当前正在使用的 Profile
+    let deletedSelectedAPIProfile = false;
 
     for (const item of recycleItems) {
 
@@ -1694,12 +1849,14 @@ $(document).off("click.stAmBatchDel").on(
                 if (
                     String(selectedProfile) ===
                     String(item.id)
-                ) {
+            ) {
 
-                    extension_settings
-                        .connectionManager
-                        .selectedProfile = null;
-                }
+    deletedSelectedAPIProfile = true;
+
+    extension_settings
+        .connectionManager
+        .selectedProfile = null;
+}
 
 
                 // 保存 Connection Manager 设置。
@@ -1803,6 +1960,11 @@ $(document).off("click.stAmBatchDel").on(
     // 重新扫描真实资源
     scanResources();
     scanAPIProfiles();
+
+// 同步 SillyTavern 原生 Connection Profile UI
+syncConnectionProfileUI(
+    deletedSelectedAPIProfile
+);
 
     renderModalUI();
 
