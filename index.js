@@ -9,8 +9,10 @@ if (!extension_settings[extName]) {
         entryMode: 'both',
         worldCategories: [],
         presetsCategories: [],
+        apiCategories: [],
         worldMap: {},
         presetsMap: {},
+        apiMap: {},
         recycleBin: []
     };
 }
@@ -25,6 +27,10 @@ if (!Array.isArray(settings.presetsCategories)) {
     settings.presetsCategories = [];
 }
 
+if (!Array.isArray(settings.apiCategories)) {
+    settings.apiCategories = [];
+}
+
 if (!settings.worldMap) {
     settings.worldMap = {};
 }
@@ -35,6 +41,10 @@ if (!settings.presetsMap) {
 
 if (!settings.recycleBin) {
     settings.recycleBin = [];
+}
+
+if (!settings.apiMap) {
+    settings.apiMap = {};
 }
 
 const SVG = {
@@ -212,6 +222,83 @@ const scanResources = () => {
 };
 
 
+// =========================
+// 扫描 Connection Profiles
+// =========================
+//
+// 安全原则：
+// Explorer-NFL 只读取 profile.id 和 profile.name。
+// 不读取 api-url、secret-id、API Key 等敏感字段。
+// 不复制 Profile 对象。
+// 不保存任何凭据。
+//
+const scanAPIProfiles = () => {
+
+    const profiles =
+        extension_settings.connectionManager?.profiles;
+
+    if (!Array.isArray(profiles)) {
+        return;
+    }
+
+    const profilesFound = new Map();
+
+    profiles.forEach(profile => {
+
+        if (!profile || !profile.id) {
+            return;
+        }
+
+        // 这里只读取两个非敏感字段：
+        // profile.id
+        // profile.name
+        const id = String(profile.id);
+        const name = String(profile.name || '').trim();
+
+        if (!name) {
+            return;
+        }
+
+        profilesFound.set(id, name);
+    });
+
+
+    const recycledAPIs = new Set(
+        settings.recycleBin
+            .filter(item => item.type === 'api')
+            .map(item => item.id)
+    );
+
+
+    // 删除已经不存在的 Profile。
+    //
+    // 回收站里的 Profile 暂时保留记录，
+    // 以便之后实现恢复/永久删除。
+    Object.keys(settings.apiMap).forEach(id => {
+
+        if (
+            !profilesFound.has(id) &&
+            !recycledAPIs.has(id)
+        ) {
+            delete settings.apiMap[id];
+        }
+
+    });
+
+
+    // 新发现的 Profile 默认归入“未分类”。
+    profilesFound.forEach((name, id) => {
+
+        if (settings.apiMap[id] === undefined) {
+            settings.apiMap[id] = '';
+        }
+
+    });
+
+
+    saveSettingsDebounced();
+};
+
 const renderModalUI = () => {
     const body = $('#st-am-content-body');
 
@@ -229,18 +316,24 @@ const renderModalUI = () => {
         managerScope === 'all' ||
         managerScope === 'preset';
 
+    const canShowAPI =
+        managerScope === 'all' ||
+        managerScope === 'api';
+
     const isWorld = currentTab === 'world';
     const isPreset = currentTab === 'preset';
+    const isAPI = currentTab === 'api';
     const isRecycle = currentTab === 'recycle';
 
 
     // 如果当前入口不允许查看当前标签，
     // 自动切换到该入口允许的第一个页面。
     if (
-        !isRecycle &&
+                !isRecycle &&
         (
             (isWorld && !canShowWorld) ||
-            (isPreset && !canShowPreset)
+            (isPreset && !canShowPreset) ||
+            (isAPI && !canShowAPI)
         )
     ) {
         currentTab =
@@ -248,7 +341,9 @@ const renderModalUI = () => {
                 ? 'world'
                 : canShowPreset
                     ? 'preset'
-                    : 'recycle';
+                    : canShowAPI
+                        ? 'api'
+                        : 'recycle';
     }
 
 
@@ -304,6 +399,30 @@ const renderModalUI = () => {
         `);
     }
 
+    
+    // API / Connection Profile 按钮
+    if (canShowAPI) {
+
+        navButtons.push(`
+            <button
+                class="menu_button st-am-tab-btn"
+                data-tab="api"
+                style="
+                    flex:1;
+                    margin:0;
+                    display:flex;
+                    align-items:center;
+                    justify-content:center;
+                    ${currentTab === 'api'
+                        ? 'border-color:var(--SmartThemeQuoteColor); font-weight:bold; background:rgba(128,128,128,0.2);'
+                        : ''
+                    }
+                "
+            >
+                ${SVG.manage} API
+            </button>
+        `);
+    }
 
     // 回收站始终显示
     navButtons.push(`
@@ -375,25 +494,89 @@ const renderModalUI = () => {
         return;
     }
 
-    let categoriesList = isWorld 
-    ? settings.worldCategories 
-    : settings.presetsCategories;
+    let categoriesList;
+if (isWorld) {
+    categoriesList = settings.worldCategories;
+} else if (isPreset) {
+    categoriesList = settings.presetsCategories;
+} else if (isAPI) {
+    categoriesList = settings.apiCategories;
+} else {
+    categoriesList = [];
+}
 
 if (!Array.isArray(categoriesList)) {
     categoriesList = [];
     
-    if (isWorld) {
+if (isWorld) {
         settings.worldCategories = [];
-    } else {
+    } else if (isPreset) {
         settings.presetsCategories = [];
+    } else if (isAPI) {
+        settings.apiCategories = [];
     }
 
     saveSettingsDebounced();
 }
+
     
-    const itemMap = isWorld ? settings.worldMap : settings.presetsMap;
-    const recycledSet = new Set(settings.recycleBin.filter(r => r.type === (isWorld ? 'world' : 'preset')).map(r => r.name));
-    const allItems = Object.keys(itemMap).filter(k => !recycledSet.has(k));
+    let itemMap;
+if (isWorld) {
+    itemMap = settings.worldMap;
+} else if (isPreset) {
+    itemMap = settings.presetsMap;
+} else if (isAPI) {
+    itemMap = settings.apiMap;
+} else {
+    itemMap = {};
+}
+    
+    let recycleType;
+if (isWorld) {
+    recycleType = 'world';
+} else if (isPreset) {
+    recycleType = 'preset';
+} else {
+    recycleType = 'api';
+}
+
+const recycledSet = new Set(
+    settings.recycleBin
+        .filter(r => r.type === recycleType)
+        .map(r => isAPI ? r.id : r.name)
+);
+
+    
+    let allItems = Object.keys(itemMap)
+    .filter(k => !recycledSet.has(k));
+
+if (isAPI) {
+    const profiles =
+        extension_settings.connectionManager?.profiles;
+    
+    const profileNameMap = new Map();
+
+    if (Array.isArray(profiles)) {
+        profiles.forEach(profile => {
+
+            if (!profile || !profile.id) {
+                return;
+            }
+
+            const id = String(profile.id);
+            const name = String(profile.name || '').trim();
+
+            if (name) {
+                profileNameMap.set(id, name);
+            }
+        });
+    }
+
+    // API 页面内部仍然使用 Profile ID，
+    // 显示时再转换成 Profile 名称。
+    allItems = allItems
+        .filter(id => profileNameMap.has(id));
+}
 
     let catBadgesHtml = `
         <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; align-items:center;">
@@ -639,15 +822,29 @@ const batchBarHtml = `
     if (displayItems.length === 0) {
         itemsListHtml = `<div style="text-align:center; padding:35px 0; opacity:0.6; font-size:0.9em;">暂无条目，请点击上方“重新扫描”获取系统列表</div>`;
     } else {
+        
         displayItems.forEach(name => {
-            const itemKey = `${currentTab}::${name}`;
-            const checked = selectedItems.has(itemKey) ? 'checked' : '';
-            const currentCat = itemMap[name] || '未分类';
+    const itemKey = `${currentTab}::${name}`;
+    const checked = selectedItems.has(itemKey) ? 'checked' : '';
+    const currentCat = itemMap[name] || '未分类';
+
+    let displayName = name;
+
+    if (isAPI) {
+        const profile =
+            extension_settings.connectionManager?.profiles
+                ?.find(p => String(p.id) === String(name));
+
+        displayName =
+            profile?.name
+                ? String(profile.name)
+                : name;
+    }
             itemsListHtml += `
                 <label style="display:flex; justify-content:space-between; align-items:center; padding:8px 10px; margin-bottom:4px; border-radius:6px; background:rgba(128,128,128,0.06); cursor:pointer;">
                     <div style="display:flex; align-items:center; overflow:hidden; padding-right:10px;">
                         <input type="checkbox" class="st-am-item-cb" data-name="${name}" data-type="${currentTab}" ${checked} style="margin-right:8px;">
-                        <span style="font-size:0.9em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${name}</span>
+                        <span style="font-size:0.9em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${displayName}</span>
                     </div>
                     <span style="font-size:0.75em; opacity:0.7; padding:2px 6px; border-radius:4px; background:rgba(0,0,0,0.15); flex-shrink:0;">${currentCat}</span>
                 </label>
@@ -1208,10 +1405,13 @@ const openManagerModal = (targetTab = 'world', scope = 'all') => {
         console.log("[Explorer-NFL] currentTab:", currentTab);
 
         console.log("[Explorer-NFL] scanResources");
-        scanResources();
+scanResources();
 
-        console.log("[Explorer-NFL] renderModalUI");
-        renderModalUI();
+console.log("[Explorer-NFL] scanAPIProfiles");
+scanAPIProfiles();
+
+console.log("[Explorer-NFL] renderModalUI");
+renderModalUI();
 
         console.log("[Explorer-NFL] 显示窗口");
         $("#st-am-modal-wrapper").css("display", "flex");
@@ -1308,7 +1508,48 @@ if (worldBox.length && !$('#st-am-btn-world').length) {
 
 }
 
+    // =========================
+    // Connection Profile / API 按钮
+    // =========================
 
+    if (mode === 'native' || mode === 'both') {
+
+        const profileBox = $('#connection_profiles');
+
+        if (
+            profileBox.length &&
+            !$('#st-am-btn-api').length
+        ) {
+
+            const container =
+                profileBox.closest('.flex-container').length
+                    ? profileBox.closest('.flex-container')
+                    : profileBox.parent();
+
+            container.after(`
+                <div
+                    id="st-am-btn-api"
+                    class="menu_button st-am-native-btn"
+                    style="
+                        width:100%;
+                        margin:8px 0;
+                        box-sizing:border-box;
+                        display:flex;
+                        justify-content:center;
+                        align-items:center;
+                    "
+                >
+                    ${SVG.manage}
+                    批量管理 API
+                </div>
+            `);
+        }
+
+    } else {
+
+        $('#st-am-btn-api').remove();
+
+    }
 
     // =========================
     // 魔法棒入口
@@ -1370,6 +1611,20 @@ jQuery(async () => {
         e.stopPropagation();
         openManagerModal('world', 'world');
     });
+
+    $(document)
+        .off("click.stAmApiBtn")
+        .on(
+            "click.stAmApiBtn",
+            "#st-am-btn-api",
+            function(e) {
+
+                e.preventDefault();
+                e.stopPropagation();
+
+                openManagerModal('api', 'api');
+            }
+        );
 
    $(document)
     .off("click.stAmMagicBtn")
