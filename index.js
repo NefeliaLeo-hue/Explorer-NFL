@@ -686,12 +686,51 @@ const presetSelectedCount = [...selectedItems].filter(itemKey =>
     itemKey.startsWith('preset::')
 ).length;
 
+const apiSelectedCount = [...selectedItems].filter(itemKey =>
+    itemKey.startsWith('api::')
+).length;
+
+
 let selectedCountText = '未选择资源';
 
-if (worldSelectedCount > 0 && presetSelectedCount > 0) {
+
+if (
+    worldSelectedCount > 0 &&
+    presetSelectedCount > 0 &&
+    apiSelectedCount > 0
+) {
 
     selectedCountText =
-        `已选择 ${worldSelectedCount} 个世界书 / ${presetSelectedCount} 个预设`;
+        `已选择 ${worldSelectedCount} 个世界书 / ` +
+        `${presetSelectedCount} 个预设 / ` +
+        `${apiSelectedCount} 个 API`;
+
+} else if (
+    worldSelectedCount > 0 &&
+    presetSelectedCount > 0
+) {
+
+    selectedCountText =
+        `已选择 ${worldSelectedCount} 个世界书 / ` +
+        `${presetSelectedCount} 个预设`;
+
+} else if (
+    worldSelectedCount > 0 &&
+    apiSelectedCount > 0
+) {
+
+    selectedCountText =
+        `已选择 ${worldSelectedCount} 个世界书 / ` +
+        `${apiSelectedCount} 个 API`;
+
+} else if (
+    presetSelectedCount > 0 &&
+    apiSelectedCount > 0
+) {
+
+    selectedCountText =
+        `已选择 ${presetSelectedCount} 个预设 / ` +
+        `${apiSelectedCount} 个 API`;
 
 } else if (worldSelectedCount > 0) {
 
@@ -702,6 +741,11 @@ if (worldSelectedCount > 0 && presetSelectedCount > 0) {
 
     selectedCountText =
         `已选择 ${presetSelectedCount} 个预设`;
+
+} else if (apiSelectedCount > 0) {
+
+    selectedCountText =
+        `已选择 ${apiSelectedCount} 个 API`;
 }
 
 
@@ -927,9 +971,11 @@ const mountUIRoot = () => {
 
 
         const targetList =
-            currentTab === 'world'
-                ? settings.worldCategories
-                : settings.presetsCategories;
+    currentTab === 'world'
+        ? settings.worldCategories
+        : currentTab === 'preset'
+            ? settings.presetsCategories
+            : settings.apiCategories;
 
 
         if (!targetList.includes(val)) {
@@ -958,8 +1004,30 @@ const mountUIRoot = () => {
         e.stopPropagation();
         const cat = String($(this).data("cat"));
         if (confirm(`确定要删除分类【${cat}】吗？\n该分类下的项目将自动退回“未分类”，不会删除实际文件。`)) {
-            const targetList = currentTab === 'world' ? settings.worldCategories : settings.presetsCategories;
-            const targetMap = currentTab === 'world' ? settings.worldMap : settings.presetsMap;
+            
+            let targetList;
+        let targetMap;
+
+if (currentTab === 'world') {
+
+    targetList = settings.worldCategories;
+    targetMap = settings.worldMap;
+
+} else if (currentTab === 'preset') {
+
+    targetList = settings.presetsCategories;
+    targetMap = settings.presetsMap;
+
+} else if (currentTab === 'api') {
+
+    targetList = settings.apiCategories;
+    targetMap = settings.apiMap;
+
+} else {
+
+    return;
+}
+            
             const idx = targetList.indexOf(cat);
             if (idx !== -1) targetList.splice(idx, 1);
             Object.keys(targetMap).forEach(k => {
@@ -1066,17 +1134,28 @@ const mountUIRoot = () => {
 
     const onlyType = [...selectedTypes][0];
 
-    if (onlyType !== 'world' && onlyType !== 'preset') {
-        if (typeof toastr !== 'undefined') {
-            toastr.warning('无法识别所选资源类型');
-        }
-        return;
+    if (
+    onlyType !== 'world' &&
+    onlyType !== 'preset' &&
+    onlyType !== 'api'
+) {
+    if (typeof toastr !== 'undefined') {
+        toastr.warning('无法识别所选资源类型');
     }
+    return;
+}
 
-    const targetMap =
-        onlyType === 'world'
-            ? settings.worldMap
-            : settings.presetsMap;
+let targetMap;
+
+if (onlyType === 'world') {
+    targetMap = settings.worldMap;
+
+} else if (onlyType === 'preset') {
+    targetMap = settings.presetsMap;
+
+} else if (onlyType === 'api') {
+    targetMap = settings.apiMap;
+}
 
     selectedItems.forEach(itemKey => {
 
