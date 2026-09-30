@@ -852,16 +852,16 @@ const recycledSet = new Set(
     .filter(k => !recycledSet.has(k));
 
 if (isAPI) {
+
     // API 内部使用资源 ID。
     // 显示名称统一从 apiDisplayNames 获取。
 
-    allItems = all
-        Items
-        .filter(id =>
+    allItems = allItems.filter(
+        id =>
             apiDisplayNames.has(
                 String(id)
             )
-        );
+    );
 }
 
     let catBadgesHtml = `
