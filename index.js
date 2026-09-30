@@ -70,6 +70,14 @@ let currentFilterCat = 'all';
 // 避免世界书和预设同名时发生冲突。
 let selectedItems = new Set();
 
+// =========================
+// API 显示名称缓存
+// =========================
+// Explorer 内部使用资源 ID。
+// 用户界面显示资源名称。
+// 这里只保存在内存中，不写入 settings。
+let apiDisplayNames = new Map();
+
 // all = 可以查看世界书和预设
 // world = 只能查看世界书和回收站
 // preset = 只能查看预设和回收站
@@ -228,77 +236,205 @@ const scanResources = () => {
 
 
 // =========================
-// 扫描 Connection Profiles
+// 扫描 API / Connection
 // =========================
 //
-// 安全原则：
-// Explorer-NFL 只读取 profile.id 和 profile.name。
-// 不读取 api-url、secret-id、API Key 等敏感字段。
-// 不复制 Profile 对象。
-// 不保存任何凭据。
+// ST：
+// extension_settings.connectionManager.profiles
 //
-const scanAPIProfiles = () => {
+// TT：
+// adapters/tt.js
+// → llmConnections.list()
+//
+// Explorer 内部只保存资源 ID → 分类。
+// 显示名称放在内存中的 apiDisplayNames。
+// 不保存 API Key / Secret / URL。
+// =========================
 
-    const profiles =
-        extension_settings.connectionManager?.profiles;
+const scanAPIProfiles = async () => {
 
-    if (!Array.isArray(profiles)) {
-        return;
-    }
+    // 每次扫描都重新建立显示名称缓存。
+    apiDisplayNames = new Map();
 
     const profilesFound = new Map();
 
-    profiles.forEach(profile => {
 
-        if (!profile || !profile.id) {
+    // =========================
+    // TauriTavern
+    // =========================
+
+    if (isTauriTavern()) {
+        try {
+            const connections =
+                await listTauriTavernLLMConnections();
+
+            connections.forEach(connection => {
+                if (
+                    !connection ||
+                    !connection.id
+                ) {
+                    return;
+                }
+
+                const id =
+                    String(connection.id);
+
+                const name =
+                    String(connection.name || '')
+                        .trim();
+
+                if (!name) {
+                    return;
+                }
+
+                profilesFound.set(
+                    id,
+                    name
+                );
+
+                apiDisplayNames.set(
+                    id,
+                    name
+                );
+            });
+
+        } catch (err) {
+
+            console.error(
+                `[${extName}] TT LLM Connection 扫描失败:`,
+                err
+            );
+
+            if (
+                typeof toastr !== 'undefined'
+            ) {
+                
+                toastr.error(
+                    `TT API 扫描失败：${err?.message || err}`
+                );
+            }
+
+            // TT 扫描失败时：
+            // 不清理现有 Explorer API 数据。
             return;
         }
 
-        // 这里只读取两个非敏感字段：
-        // profile.id
-        // profile.name
-        const id = String(profile.id);
-        const name = String(profile.name || '').trim();
+    }
 
-        if (!name) {
+
+    // =========================
+    // SillyTavern
+    // =========================
+
+    else {
+
+        const profiles =
+            extension_settings
+                .connectionManager
+                ?.profiles;
+
+
+        if (!Array.isArray(profiles)) {
             return;
         }
 
-        profilesFound.set(id, name);
-    });
+
+        profiles.forEach(profile => {
+
+            if (
+                !profile ||
+                !profile.id
+            ) {
+                return;
+            }
 
 
-    const recycledAPIs = new Set(
-        settings.recycleBin
-            .filter(item => item.type === 'api')
-            .map(item => item.id)
-    );
+            // 这里只读取非敏感字段：
+            // profile.id
+            // profile.name
+
+            const id =
+                String(profile.id);
 
 
-    // 删除已经不存在的 Profile。
-    //
-    // 回收站里的 Profile 暂时保留记录，
-    // 以便之后实现恢复/永久删除。
-    Object.keys(settings.apiMap).forEach(id => {
+            const name =
+                String(profile.name || '')
+                    .trim();
+
+
+            if (!name) {
+                return;
+            }
+
+
+            profilesFound.set(
+                id,
+                name
+            );
+
+
+            apiDisplayNames.set(
+                id,
+                name
+            );
+        });
+    }
+
+
+    // =========================
+    // 回收站中的 API
+    // =========================
+
+    const recycledAPIs =
+        new Set(
+            settings.recycleBin
+                .filter(
+                    item =>
+                        item.type === 'api'
+                )
+                .map(
+                    item =>
+                        String(item.id)
+                )
+        );
+
+
+    // =========================
+    // 清理已经不存在的 API
+    // =========================
+
+    Object.keys(
+        settings.apiMap
+    ).forEach(id => {
 
         if (
             !profilesFound.has(id) &&
             !recycledAPIs.has(id)
         ) {
+
             delete settings.apiMap[id];
         }
 
     });
 
 
-    // 新发现的 Profile 默认归入“未分类”。
-    profilesFound.forEach((name, id) => {
+    // =========================
+    // 新发现的 API 默认未分类
+    // =========================
 
-        if (settings.apiMap[id] === undefined) {
-            settings.apiMap[id] = '';
+    profilesFound.forEach(
+        (name, id) => {
+
+            if (
+                settings.apiMap[id] ===
+                undefined
+            ) {
+
+                settings.apiMap[id] = '';
+            }
+
         }
-
-    });
+    );
 
 
     saveSettingsDebounced();
@@ -716,31 +852,16 @@ const recycledSet = new Set(
     .filter(k => !recycledSet.has(k));
 
 if (isAPI) {
-    const profiles =
-        extension_settings.connectionManager?.profiles;
-    
-    const profileNameMap = new Map();
+    // API 内部使用资源 ID。
+    // 显示名称统一从 apiDisplayNames 获取。
 
-    if (Array.isArray(profiles)) {
-        profiles.forEach(profile => {
-
-            if (!profile || !profile.id) {
-                return;
-            }
-
-            const id = String(profile.id);
-            const name = String(profile.name || '').trim();
-
-            if (name) {
-                profileNameMap.set(id, name);
-            }
-        });
-    }
-
-    // API 页面内部仍然使用 Profile ID，
-    // 显示时再转换成 Profile 名称。
-    allItems = allItems
-        .filter(id => profileNameMap.has(id));
+    allItems = all
+        Items
+        .filter(id =>
+            apiDisplayNames.has(
+                String(id)
+            )
+        );
 }
 
     let catBadgesHtml = `
@@ -1039,16 +1160,13 @@ const batchBarHtml = `
 
     let displayName = name;
 
-    if (isAPI) {
-        const profile =
-            extension_settings.connectionManager?.profiles
-                ?.find(p => String(p.id) === String(name));
+if (isAPI) {
 
-        displayName =
-            profile?.name
-                ? String(profile.name)
-                : name;
-    }
+    displayName =
+        apiDisplayNames.get(
+            String(name)
+        ) || name;
+}
             itemsListHtml += `
                 <label style="display:flex; justify-content:space-between; align-items:center; padding:8px 10px; margin-bottom:4px; border-radius:6px; background:rgba(128,128,128,0.06); cursor:pointer;">
                     <div style="display:flex; align-items:center; overflow:hidden; padding-right:10px;">
@@ -2043,16 +2161,21 @@ syncConnectionProfileUI(
 });
 
     
-    $(document).off("click.stAmRescan").on("click.stAmRescan", "#st-am-rescan-btn", function(e) {
+    $(document).off("click.stAmRescan").on("click.stAmRescan", "#st-am-rescan-btn", async function(e) {
         e.preventDefault();
         e.stopPropagation();
         scanResources();
+        await scanAPIProfiles();
         renderModalUI();
+        
         if (typeof toastr !== 'undefined') toastr.info('扫描完成！');
     });
 };
 
-const openManagerModal = (targetTab = 'world', scope = 'all') => {
+const openManagerModal = async (
+    targetTab = 'world',
+    scope = 'all'
+) => {
     try {
         console.log("[Explorer-NFL] 打开管理面板");
 
@@ -2074,7 +2197,7 @@ const openManagerModal = (targetTab = 'world', scope = 'all') => {
 scanResources();
 
 console.log("[Explorer-NFL] scanAPIProfiles");
-scanAPIProfiles();
+await scanAPIProfiles();
 
 console.log("[Explorer-NFL] renderModalUI");
 renderModalUI();
