@@ -78,6 +78,15 @@ let selectedItems = new Set();
 // 这里只保存在内存中，不写入 settings。
 let apiDisplayNames = new Map();
 
+// =========================
+// API 类型缓存
+// =========================
+// ST：统一视为普通 Connection Profile
+// TT：区分普通 Connection 与 Model Target
+//
+// 这里只保存资源类型信息，不保存任何连接凭据。
+let apiDisplayKinds = new Map();
+
 // all = 可以查看世界书和预设
 // world = 只能查看世界书和回收站
 // preset = 只能查看预设和回收站
@@ -256,6 +265,9 @@ const scanAPIProfiles = async () => {
     // 每次扫描都重新建立显示名称缓存。
     apiDisplayNames = new Map();
 
+    // 每次扫描都重新建立类型缓存。
+    apiDisplayKinds = new Map();
+
     const profilesFound = new Map();
 
 
@@ -290,13 +302,18 @@ const scanAPIProfiles = async () => {
                 profilesFound.set(
                     id,
                     name
-                );
+            );
 
-                apiDisplayNames.set(
+               apiDisplayNames.set(
                     id,
-                    name
-                );
-            });
+                   name
+            );
+
+               apiDisplayKinds.set(
+                    id,
+                    connection.kind || 'connection'
+            );
+    });
 
         } catch (err) {
 
@@ -377,6 +394,11 @@ const scanAPIProfiles = async () => {
                 id,
                 name
             );
+
+            apiDisplayKinds.set(
+                id,
+                'connection'
+           );
         });
     }
 
@@ -1167,12 +1189,83 @@ if (isAPI) {
             String(name)
         ) || name;
 }
+
+            
+ let apiKindLabel = '';
+
+if (
+    isAPI &&
+    isTauriTavern()
+) {
+
+    const kind =
+        apiDisplayKinds.get(
+            String(name)
+        );
+
+    if (kind === 'model-target') {
+
+        apiKindLabel = `
+            <span
+                style="
+                    font-size:0.72em;
+                    margin-left:8px;
+                    padding:2px 6px;
+                    border-radius:4px;
+                    background:rgba(128,128,128,0.18);
+                    opacity:0.85;
+                    flex-shrink:0;
+                "
+            >
+                已保存模型
+            </span>
+        `;
+
+    } else {
+
+        apiKindLabel = `
+            <span
+                style="
+                    font-size:0.72em;
+                    margin-left:8px;
+                    padding:2px 6px;
+                    border-radius:4px;
+                    background:rgba(128,128,128,0.12);
+                    opacity:0.65;
+                    flex-shrink:0;
+                "
+            >
+                连接
+            </span>
+        `;
+    }
+}
+            
             itemsListHtml += `
                 <label style="display:flex; justify-content:space-between; align-items:center; padding:8px 10px; margin-bottom:4px; border-radius:6px; background:rgba(128,128,128,0.06); cursor:pointer;">
                     <div style="display:flex; align-items:center; overflow:hidden; padding-right:10px;">
-                        <input type="checkbox" class="st-am-item-cb" data-name="${name}" data-type="${currentTab}" ${checked} style="margin-right:8px;">
-                        <span style="font-size:0.9em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${displayName}</span>
-                    </div>
+    <input
+        type="checkbox"
+        class="st-am-item-cb"
+        data-name="${name}"
+        data-type="${currentTab}"
+        ${checked}
+        style="margin-right:8px;"
+    >
+
+    <span
+        style="
+            font-size:0.9em;
+            white-space:nowrap;
+            overflow:hidden;
+            text-overflow:ellipsis;
+        "
+    >
+        ${displayName}
+    </span>
+
+    ${apiKindLabel}
+</div>
                     <span style="font-size:0.75em; opacity:0.7; padding:2px 6px; border-radius:4px; background:rgba(0,0,0,0.15); flex-shrink:0;">${currentCat}</span>
                 </label>
             `;
