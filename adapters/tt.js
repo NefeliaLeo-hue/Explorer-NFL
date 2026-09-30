@@ -129,6 +129,19 @@ const getTauriTavernLLMConnectionsAPI = async () => {
 // 不把原始 DTO 整体交给 Explorer。
 // =========================
 
+// =========================
+// 只读：列出 LLM Connections
+// =========================
+//
+// TT 官方 list() 返回 Connection summaries。
+// Explorer 只留下：
+// id
+// displayName → name
+// kind
+//
+// 不把原始 DTO 整体交给 Explorer。
+// =========================
+
 export const listTauriTavernLLMConnections =
     async () => {
 
@@ -163,14 +176,16 @@ export const listTauriTavernLLMConnections =
                 ).trim();
 
             return {
-                  id,
-                  name: name || id,
+                id,
+                name: name || id,
 
-    //根据 TT 官方
-    // Connection Manager 的 Model Target
-    // 会物化为 id = "model-target-" + target.id
-         kind:
-            id.startsWith('model-target-')
-               ? 'model-target'
-               : 'connection',
-     };
+                // 根据 TT 官方的 Model Target
+                // 物化规则：
+                // model-target-<target.id>
+                kind:
+                    id.startsWith('model-target-')
+                        ? 'model-target'
+                        : 'connection',
+            };
+        });
+};
