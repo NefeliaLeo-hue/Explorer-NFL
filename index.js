@@ -2264,7 +2264,36 @@ if (worldBox.length && !$('#st-am-btn-world').length) {
 };
 
 jQuery(async () => {
+
+    // =========================
+    // TT Adapter 只读测试
+    // =========================
+
+    try {
+
+        if (isTauriTavern()) {
+
+            const connections =
+                await listTauriTavernLLMConnections();
+
+            console.log(
+                `[${extName}][TT Adapter] ` +
+                `LLM Connections 可读取：${connections.length} 个`
+            );
+        }
+
+    } catch (err) {
+
+        console.warn(
+            `[${extName}][TT Adapter] ` +
+            `LLM Connection 读取失败：`,
+            err
+        );
+    }
+
+
     mountUIRoot();
+
 
     $(document).off("click.stAmBtn").on("click.stAmBtn", "#st-am-btn-preset", function(e) {
         e.preventDefault();
