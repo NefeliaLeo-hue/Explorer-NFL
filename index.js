@@ -1739,42 +1739,83 @@ $(document).off("click.stAmBatchDel").on(
             // 删除 OpenAI / Chat Completion 预设
             // =========================
 
-            else if (item.type === 'preset') {
+    else if (item.type === 'preset') {
 
-                const response = await fetch(
-    '/api/presets/delete',
-    {
-        method: 'POST',
-        headers: getRequestHeaders(),
-        body: JSON.stringify({
-            apiId: 'openai',
-            name: item.name
-        })
+    // 优先使用 SillyTavern 原生 PresetManager。
+    // 不直接调用 /api/presets/delete，
+    // 避免绕过原生预设状态与 UI 同步逻辑。
+
+    const context = getContext();
+
+    const getPresetManager =
+        context?.getPresetManager;
+
+    if (
+        typeof getPresetManager !== 'function'
+    ) {
+        throw new Error(
+            '当前 SillyTavern 未提供 PresetManager 接口'
+        );
     }
-);
 
-                if (!response.ok) {
-                    throw new Error(
-                        `预设删除失败：${item.name}（HTTP ${response.status}）`
-                    );
-                }
+    const presetManager =
+        getPresetManager('openai');
 
-                delete settings.presetsMap[item.name];
+    if (!presetManager) {
+        throw new Error(
+            '找不到 OpenAI PresetManager'
+        );
+    }
 
-                // 如果原生预设下拉框里还有这个项目，
-                // 顺便从页面上移除。
-                $(
-                    '#settings_preset_openai option, ' +
-                    '#openai_preset option, ' +
-                    '#chat_completion_preset option'
-                )
-                    .filter(function() {
-                        return $(this).text().trim() === item.name;
-                    })
-                    .remove();
 
-                successCount++;
-            }
+    // 确认这个预设确实存在。
+    const presetExists =
+        typeof presetManager.findPreset === 'function'
+            ? presetManager.findPreset(item.name)
+            : null;
+
+    if (
+        presetExists === undefined ||
+        presetExists === null
+    ) {
+        throw new Error(
+            `找不到 OpenAI 预设：${item.name}`
+        );
+    }
+
+
+    // 直接调用 ST 原生删除流程。
+    // 这里由 PresetManager 自己负责：
+    // - 原生预设列表
+    // - 内存中的 preset 数据
+    // - 当前选中项
+    // - CSRF 请求头
+    // - /api/presets/delete
+    const result =
+        await presetManager.deletePreset(
+            item.name
+        );
+
+
+    // 不同 ST 版本的 deletePreset()
+    // 返回值可能不同。
+    // 如果明确返回 false，才判定失败。
+    if (result === false) {
+
+        throw new Error(
+            `预设删除失败：${item.name}`
+        );
+    }
+
+
+    // Explorer 自己的分类映射删除。
+    delete settings.presetsMap[
+        item.name
+    ];
+
+
+    successCount++;
+}
 
 
             // =========================
@@ -1849,14 +1890,14 @@ $(document).off("click.stAmBatchDel").on(
                 if (
                     String(selectedProfile) ===
                     String(item.id)
-            ) {
+             ) {
 
-    deletedSelectedAPIProfile = true;
+                    deletedSelectedAPIProfile = true;
 
-    extension_settings
-        .connectionManager
-        .selectedProfile = null;
-}
+                    extension_settings
+                       .connectionManager
+                       .selectedProfile = null;
+                 }
 
 
                 // 保存 Connection Manager 设置。
