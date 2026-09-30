@@ -163,8 +163,14 @@ export const listTauriTavernLLMConnections =
                 ).trim();
 
             return {
-                id,
-                name: name || id
-            };
-        });
-};
+                  id,
+                  name: name || id,
+
+    //根据 TT 官方
+    // Connection Manager 的 Model Target
+    // 会物化为 id = "model-target-" + target.id
+         kind:
+            id.startsWith('model-target-')
+               ? 'model-target'
+               : 'connection',
+     };
