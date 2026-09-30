@@ -2271,25 +2271,32 @@ jQuery(async () => {
 
     try {
 
-        if (isTauriTavern()) {
+    if (isTauriTavern()) {
 
-            const connections =
-                await listTauriTavernLLMConnections();
+        const connections =
+            await listTauriTavernLLMConnections();
 
-            console.log(
-                `[${extName}][TT Adapter] ` +
-                `LLM Connections 可读取：${connections.length} 个`
+        if (typeof toastr !== 'undefined') {
+            toastr.success(
+                `TT Adapter 读取成功：${connections.length} 个 LLM Connection`
             );
         }
 
-    } catch (err) {
+    }
 
-        console.warn(
-            `[${extName}][TT Adapter] ` +
-            `LLM Connection 读取失败：`,
-            err
+} catch (err) {
+
+    console.error(
+        `[${extName}][TT Adapter] LLM Connection 读取失败：`,
+        err
+    );
+
+    if (typeof toastr !== 'undefined') {
+        toastr.error(
+            `TT Adapter 读取失败：${err?.message || err}`
         );
     }
+}
 
 
     mountUIRoot();
