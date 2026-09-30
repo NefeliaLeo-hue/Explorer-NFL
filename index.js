@@ -2,6 +2,11 @@ import { getContext, extension_settings } from '/scripts/extensions.js';
 import {saveSettingsDebounced,eventSource,event_types,getRequestHeaders} from '/script.js';
 import { deleteWorldInfo } from '/scripts/world-info.js';
 
+import {
+    isTauriTavern,
+    listTauriTavernLLMConnections
+} from './adapters/tt.js';
+
 const extName = "Explorer-NFL";
 
 if (!extension_settings[extName]) {
