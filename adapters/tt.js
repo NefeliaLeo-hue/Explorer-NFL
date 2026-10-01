@@ -429,6 +429,133 @@ export const listTauriTavernLLMConnections =
         }
 
 
+// =========================
+// 临时诊断：读取 TT Model Target
+// =========================
+//
+// 注意：
+// 这里只读取非敏感摘要：
+// - id
+// - name
+// - kind
+// - mode
+//
+// 不读取：
+// - API Key
+// - Secret 本体
+// - secretRef
+// - URL
+// - endpoint
+// - 完整 Connection Definition
+//
+// 这一段只是为了定位当前 TT UI 与
+// llmConnections.list() 为什么出现不同步。
+// =========================
+
+try {
+
+    const context =
+        window.SillyTavern?.getContext?.();
+
+
+    const modelTargets =
+        context
+            ?.extensionSettings
+            ?.connectionManager
+            ?.modelTargets;
+
+
+    if (
+        Array.isArray(modelTargets)
+    ) {
+
+        const ccTargets =
+            modelTargets
+                .filter(
+                    target =>
+                        target?.kind ===
+                            'tauritavern.modelTarget' &&
+                        target?.mode === 'cc'
+                );
+
+
+        report(
+            `Model Target 数量 = ${ccTargets.length}`
+        );
+
+
+        const targetNames =
+            ccTargets
+
+                .slice(0, 5)
+
+                .map(
+                    target => {
+
+                        const id =
+                            String(
+                                target?.id || ''
+                            ).trim();
+
+                        const name =
+                            String(
+                                target?.name || ''
+                            ).trim();
+
+                        return (
+                            name ||
+                            id ||
+                            '(无名称)'
+                        );
+
+                    }
+                )
+
+                .filter(
+                    value => value
+                );
+
+
+        if (
+            targetNames.length > 0
+        ) {
+
+            report(
+                `前 ${targetNames.length} 个 Model Target：` +
+                targetNames.join(' | ')
+            );
+
+        } else {
+
+            report(
+                'Model Target 列表存在，但没有可显示名称。',
+                'warning'
+            );
+
+        }
+
+    } else {
+
+        report(
+            'Model Target = 无法读取或不是数组。',
+            'warning'
+        );
+
+    }
+
+} catch (err) {
+
+    report(
+        `Model Target 诊断失败：${err?.message || err}`,
+        'warning'
+    );
+
+}
+
+
+
+        
+
         // =========================
         // 转换成 Explorer 安全对象
         // =========================
