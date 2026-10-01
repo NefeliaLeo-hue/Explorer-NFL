@@ -262,11 +262,10 @@ const scanResources = () => {
 
 const scanAPIProfiles = async () => {
 
-    // 每次扫描都重新建立显示名称缓存。
-    apiDisplayNames = new Map();
-
-    // 每次扫描都重新建立类型缓存。
-    apiDisplayKinds = new Map();
+    // 本次扫描使用临时缓存。
+    // 只有扫描成功后，才正式替换全局显示缓存。
+    const nextApiDisplayNames = new Map();
+    const nextApiDisplayKinds = new Map();
 
     const profilesFound = new Map();
 
@@ -276,11 +275,13 @@ const scanAPIProfiles = async () => {
     // =========================
 
     if (isTauriTavern()) {
+
         try {
             const connections =
                 await listTauriTavernLLMConnections();
 
             connections.forEach(connection => {
+
                 if (
                     !connection ||
                     !connection.id
@@ -288,12 +289,18 @@ const scanAPIProfiles = async () => {
                     return;
                 }
 
+
                 const id =
-                    String(connection.id);
+                    String(
+                        connection.id
+                    );
+
 
                 const name =
-                    String(connection.name || '')
-                        .trim();
+                    String(
+                        connection.name || ''
+                    ).trim();
+
 
                 if (!name) {
                     return;
@@ -302,18 +309,20 @@ const scanAPIProfiles = async () => {
                 profilesFound.set(
                     id,
                     name
-            );
+                );
 
-               apiDisplayNames.set(
+                nextApiDisplayNames.set(
                     id,
-                   name
-            );
+                    name
+                );
 
-               apiDisplayKinds.set(
+                nextApiDisplayKinds.set(
                     id,
-                    connection.kind || 'connection'
-            );
-    });
+                    connection.kind ||
+                    'connection'
+                );
+            });
+
 
         } catch (err) {
 
@@ -322,20 +331,21 @@ const scanAPIProfiles = async () => {
                 err
             );
 
+
             if (
                 typeof toastr !== 'undefined'
             ) {
-                
                 toastr.error(
                     `TT API 扫描失败：${err?.message || err}`
                 );
             }
 
-            // TT 扫描失败时：
-            // 不清理现有 Explorer API 数据。
-            return;
-        }
 
+            // TT 扫描失败时：
+            // 不清空旧的显示缓存，
+            // 不修改旧的 API 映射。
+            return false;
+        }
     }
 
 
@@ -344,7 +354,6 @@ const scanAPIProfiles = async () => {
     // =========================
 
     else {
-
         const profiles =
             extension_settings
                 .connectionManager
@@ -352,9 +361,8 @@ const scanAPIProfiles = async () => {
 
 
         if (!Array.isArray(profiles)) {
-            return;
+            return false;
         }
-
 
         profiles.forEach(profile => {
 
@@ -371,36 +379,51 @@ const scanAPIProfiles = async () => {
             // profile.name
 
             const id =
-                String(profile.id);
-
+                String(
+                    profile.id
+                );
 
             const name =
-                String(profile.name || '')
-                    .trim();
-
+                String(
+                    profile.name || ''
+                ).trim();
 
             if (!name) {
-                return;
-            }
 
+                return;
+
+            }
 
             profilesFound.set(
                 id,
                 name
             );
 
-
-            apiDisplayNames.set(
+            nextApiDisplayNames.set(
                 id,
                 name
             );
 
-            apiDisplayKinds.set(
+            nextApiDisplayKinds.set(
                 id,
                 'connection'
-           );
+            );
+
         });
+
     }
+
+
+    // =========================
+    // 到这里说明扫描本身成功
+    // 才正式提交新的显示缓存
+    // =========================
+
+    apiDisplayNames =
+        nextApiDisplayNames;
+
+    apiDisplayKinds =
+        nextApiDisplayKinds;
 
 
     // =========================
@@ -433,7 +456,6 @@ const scanAPIProfiles = async () => {
             !profilesFound.has(id) &&
             !recycledAPIs.has(id)
         ) {
-
             delete settings.apiMap[id];
         }
 
@@ -453,13 +475,15 @@ const scanAPIProfiles = async () => {
             ) {
 
                 settings.apiMap[id] = '';
-            }
 
+            }
         }
     );
 
 
     saveSettingsDebounced();
+
+    return true;
 };
 
 
@@ -2257,11 +2281,27 @@ syncConnectionProfileUI(
     $(document).off("click.stAmRescan").on("click.stAmRescan", "#st-am-rescan-btn", async function(e) {
         e.preventDefault();
         e.stopPropagation();
-        scanResources();
-        await scanAPIProfiles();
-        renderModalUI();
-        
-        if (typeof toastr !== 'undefined') toastr.info('扫描完成！');
+scanResources();
+
+const apiScanSuccess =
+    await scanAPIProfiles();
+
+renderModalUI();
+
+if (
+    typeof toastr !== 'undefined'
+) {
+
+    if (apiScanSuccess) {
+        toastr.info(
+            '扫描完成！'
+        );
+    } else {
+        toastr.warning(
+            'TT API 扫描未完成，已保留之前的数据。'
+        );
+    }
+}
     });
 };
 
@@ -2480,40 +2520,6 @@ if (worldBox.length && !$('#st-am-btn-world').length) {
 };
 
 jQuery(async () => {
-
-    // =========================
-    // TT Adapter 只读测试
-    // =========================
-
-    try {
-
-    if (isTauriTavern()) {
-
-        const connections =
-            await listTauriTavernLLMConnections();
-
-        if (typeof toastr !== 'undefined') {
-            toastr.success(
-                `TT Adapter 读取成功：${connections.length} 个 LLM Connection`
-            );
-        }
-
-    }
-
-} catch (err) {
-
-    console.error(
-        `[${extName}][TT Adapter] LLM Connection 读取失败：`,
-        err
-    );
-
-    if (typeof toastr !== 'undefined') {
-        toastr.error(
-            `TT Adapter 读取失败：${err?.message || err}`
-        );
-    }
-}
-
 
     mountUIRoot();
 
