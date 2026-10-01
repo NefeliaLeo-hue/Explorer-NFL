@@ -22,7 +22,8 @@
 // 返回给 Explorer 的只是一组：
 // {
 //     id: string,
-//     name: string
+//     name: string,
+//     kind: string
 // }
 //
 // TT Public ABI：
