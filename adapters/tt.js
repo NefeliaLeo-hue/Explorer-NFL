@@ -189,44 +189,249 @@ const getTauriTavernLLMConnectionsAPI = async () => {
 export const listTauriTavernLLMConnections =
     async () => {
 
+        // =========================
+        // TT 扫描诊断
+        // =========================
+
+        const report = (
+            message,
+            type = 'info'
+        ) => {
+
+            const text =
+                `[Explorer-NFL][TT诊断] ${message}`;
+
+            console.log(text);
+
+            if (
+                typeof toastr !== 'undefined'
+            ) {
+
+                if (
+                    type === 'error'
+                ) {
+
+                    toastr.error(message);
+
+                } else if (
+                    type === 'warning'
+                ) {
+
+                    toastr.warning(message);
+
+                } else {
+
+                    toastr.info(message);
+
+                }
+
+            }
+
+        };
+
+
+        report(
+            '开始检查 TT Public ABI...'
+        );
+
+
+        const host =
+            await waitForTauriTavernReady();
+
+
+        // =========================
+        // 检查 Host
+        // =========================
+
+        if (!host) {
+
+            report(
+                'Host = 不存在。window.__TAURITAVERN__ 未获取到。',
+                'error'
+            );
+
+            throw new Error(
+                'TT Host 不存在'
+            );
+
+        }
+
+
+        report(
+            'Host = 存在。'
+        );
+
+
+        // =========================
+        // 检查 API
+        // =========================
+
         const api =
-            await getTauriTavernLLMConnectionsAPI();
+            host?.api?.llmConnections;
+
 
         if (!api) {
 
-            throw new Error(
-                'TT LLM Connection Public API 尚未就绪'
+            report(
+                'llmConnections = 不存在。',
+                'error'
             );
+
+            throw new Error(
+                'TT Public API：llmConnections 不存在'
+            );
+
         }
 
-        const result =
-            await api.list();
+
+        report(
+            'llmConnections = 存在。'
+        );
+
+
+        // =========================
+        // 检查 list()
+        // =========================
+
+        const listType =
+            typeof api.list;
+
+
+        report(
+            `llmConnections.list 类型 = ${listType}`
+        );
+
+
+        if (
+            listType !== 'function'
+        ) {
+
+            report(
+                'list() 不是 function。',
+                'error'
+            );
+
+            throw new Error(
+                'TT llmConnections.list() 不可调用'
+            );
+
+        }
+
+
+        // =========================
+        // 真正调用 list()
+        // =========================
+
+        let result;
+
+        try {
+
+            result =
+                await api.list();
+
+        } catch (err) {
+
+            report(
+                `list() 调用失败：${err?.message || err}`,
+                'error'
+            );
+
+            throw err;
+
+        }
+
+
+        // =========================
+        // 判断返回结构
+        // =========================
 
         let connections;
+
 
         if (
             Array.isArray(
                 result?.connections
             )
         ) {
-            
+
             connections =
                 result.connections;
+
+            report(
+                `list() 返回标准结构：{ connections }，数量 = ${connections.length}`
+            );
 
         } else if (
             Array.isArray(result)
         ) {
 
-            // 兼容少数旧版 / 非标准实现
-            connections = result;
+            connections =
+                result;
+
+            report(
+                `list() 返回数组结构，数量 = ${connections.length}`,
+                'warning'
+            );
 
         } else {
+
+            report(
+                'list() 返回的数据结构无法识别。',
+                'error'
+            );
 
             throw new Error(
                 'TT llmConnections.list() 返回的数据格式无法识别'
             );
 
         }
+
+
+        // =========================
+        // 诊断返回的名称
+        // =========================
+
+        const debugNames =
+            connections
+
+                .slice(0, 5)
+
+                .map(
+                    connection =>
+                        String(
+                            connection?.displayName ||
+                            connection?.name ||
+                            ''
+                        ).trim()
+                )
+
+                .filter(
+                    name => name
+                );
+
+
+        if (
+            debugNames.length > 0
+        ) {
+
+            report(
+                `收到的前 ${debugNames.length} 个连接名称：` +
+                debugNames.join(' | ')
+            );
+
+        } else {
+
+            report(
+                '收到 Connection 列表，但没有任何可显示名称。',
+                'warning'
+            );
+
+        }
+
+
+        // =========================
+        // 转换成 Explorer 安全对象
+        // =========================
 
         return connections
 
@@ -236,32 +441,40 @@ export const listTauriTavernLLMConnections =
                     connection.id
             )
 
-            .map(connection => {
+            .map(
+                connection => {
 
-                const id =
-                    String(
-                        connection.id
-                    );
+                    const id =
+                        String(
+                            connection.id
+                        );
 
-                const name =
-                    String(
-                        connection.displayName ||
-                        connection.name ||
-                        ''
-                    ).trim();
 
-                return {
-                    id,
-                    name:
-                        name || id,
+                    const name =
+                        String(
+                            connection.displayName ||
+                            connection.name ||
+                            ''
+                        ).trim();
 
-                    kind:
-                        id.startsWith(
-                            'model-target-'
-                        )
-                            ? 'model-target'
-                            : 'connection'
 
-                };
-            });
+                    return {
+
+                        id,
+
+                        name:
+                            name || id,
+
+                        kind:
+                            id.startsWith(
+                                'model-target-'
+                            )
+                                ? 'model-target'
+                                : 'connection'
+
+                    };
+
+                }
+            );
+
     };
