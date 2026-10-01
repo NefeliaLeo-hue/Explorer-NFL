@@ -186,164 +186,157 @@ const getTauriTavernLLMConnectionsAPI = async () => {
 // 不把原始 DTO 整体交给 Explorer。
 // =========================
 
+// =========================
+// 只读：列出 TT API Connection Profile
+// =========================
+//
+// TT 中 Explorer 的“API”资源对应：
+// connectionManager.profiles
+//
+// 注意：
+// api.llmConnections 是另一层资源，管理的是 Profile 引用的模型连接，
+// 不是 API Connection Profile 列表。
+//
+// Explorer 只读取：
+// - profile.id
+// - profile.name
+//
+// 不读取：
+// - API Key
+// - Secret
+// - secretRef
+// - URL
+// - endpoint
+// - 其他认证字段
+// =========================
+
 export const listTauriTavernLLMConnections =
     async () => {
 
         // =========================
-        // TT 扫描诊断
+        // 等待 TT Host / Public ABI
         // =========================
-
-        const report = (
-            message,
-            type = 'info'
-        ) => {
-
-            const text =
-                `[Explorer-NFL][TT诊断] ${message}`;
-
-            console.log(text);
-
-            if (
-                typeof toastr !== 'undefined'
-            ) {
-
-                if (
-                    type === 'error'
-                ) {
-
-                    toastr.error(message);
-
-                } else if (
-                    type === 'warning'
-                ) {
-
-                    toastr.warning(message);
-
-                } else {
-
-                    toastr.info(message);
-
-                }
-
-            }
-
-        };
-
-
-        report(
-            '开始检查 TT Public ABI...'
-        );
-
 
         const host =
             await waitForTauriTavernReady();
 
-
-        // =========================
-        // 检查 Host
-        // =========================
-
         if (!host) {
-
-            report(
-                'Host = 不存在。window.__TAURITAVERN__ 未获取到。',
-                'error'
-            );
-
             throw new Error(
                 'TT Host 不存在'
             );
-
-        }
-
-
-        report(
-            'Host = 存在。'
-        );
-
-
-        // =========================
-        // 检查 API
-        // =========================
-
-        const api =
-            host?.api?.llmConnections;
-
-
-        if (!api) {
-
-            report(
-                'llmConnections = 不存在。',
-                'error'
-            );
-
-            throw new Error(
-                'TT Public API：llmConnections 不存在'
-            );
-
-        }
-
-
-        report(
-            'llmConnections = 存在。'
-        );
-
-
-        // =========================
-        // 检查 list()
-        // =========================
-
-        const listType =
-            typeof api.list;
-
-
-        report(
-            `llmConnections.list 类型 = ${listType}`
-        );
-
-
-        if (
-            listType !== 'function'
-        ) {
-
-            report(
-                'list() 不是 function。',
-                'error'
-            );
-
-            throw new Error(
-                'TT llmConnections.list() 不可调用'
-            );
-
         }
 
 
         // =========================
-        // 真正调用 list()
+        // 优先读取 TT 当前的
+        // Connection Profile
         // =========================
 
-        let result;
+        let context = null;
 
         try {
-
-            result =
-                await api.list();
+            context =
+                window.SillyTavern
+                    ?.getContext
+                    ?.();
 
         } catch (err) {
 
-            report(
-                `list() 调用失败：${err?.message || err}`,
-                'error'
+            console.warn(
+                '[Explorer-NFL][TT] 获取 SillyTavern Context 失败:',
+                err
             );
+        }
 
-            throw err;
 
+        const profiles =
+            context
+                ?.extensionSettings
+                ?.connectionManager
+                ?.profiles;
+
+
+        // =========================
+        // 当前 TT 版本：
+        // profiles 数组就是 API 配置来源
+        // =========================
+
+        if (
+            Array.isArray(profiles)
+        ) {
+
+            return profiles
+
+                .filter(
+                    profile =>
+                        profile &&
+                        profile.id
+                )
+
+                .map(
+                    profile => {
+                        const id =
+                            String(
+                                profile.id
+                            );
+
+                        const name =
+                            String(
+                                profile.name ||
+                                ''
+                            ).trim();
+
+                        return {
+
+                            id,
+
+                            name:
+                                name || id,
+
+                            kind:
+                              'connection'
+
+                        };
+                    }
+                );
+            
         }
 
 
         // =========================
-        // 判断返回结构
+        // 兼容 fallback
         // =========================
+        //
+        // 如果某个 TT 版本没有暴露
+        // Connection Profile 数组，
+        // 才尝试使用 Public ABI 的
+        // llmConnections。
+        //
+        // 这里仅作为兼容旧实现，
+        // 不作为当前 TT 的主要来源。
+        // =========================
+
+        const api =
+            host
+                ?.api
+                ?.llmConnections;
+
+
+        if (
+            !api ||
+            typeof api.list !== 'function'
+        ) {
+
+            throw new Error(
+                'TT Connection Profile 与 LLM Connection API 均不可用'
+            );
+
+        }
+
+
+        const result =
+            await api.list();
+
 
         let connections;
 
@@ -353,336 +346,22 @@ export const listTauriTavernLLMConnections =
                 result?.connections
             )
         ) {
-
             connections =
                 result.connections;
-
-            report(
-                `list() 返回标准结构：{ connections }，数量 = ${connections.length}`
-            );
 
         } else if (
             Array.isArray(result)
         ) {
-
             connections =
                 result;
 
-            report(
-                `list() 返回数组结构，数量 = ${connections.length}`,
-                'warning'
-            );
-
         } else {
-
-            report(
-                'list() 返回的数据结构无法识别。',
-                'error'
-            );
 
             throw new Error(
                 'TT llmConnections.list() 返回的数据格式无法识别'
             );
 
         }
-
-
-        // =========================
-        // 诊断返回的名称
-        // =========================
-
-        const debugNames =
-            connections
-
-                .slice(0, 5)
-
-                .map(
-                    connection =>
-                        String(
-                            connection?.displayName ||
-                            connection?.name ||
-                            ''
-                        ).trim()
-                )
-
-                .filter(
-                    name => name
-                );
-
-
-        if (
-            debugNames.length > 0
-        ) {
-
-            report(
-                `收到的前 ${debugNames.length} 个连接名称：` +
-                debugNames.join(' | ')
-            );
-
-        } else {
-
-            report(
-                '收到 Connection 列表，但没有任何可显示名称。',
-                'warning'
-            );
-
-        }
-
-
-// =========================
-// 最终诊断：对照 Connection Profile
-// 与 LLM Connection
-// =========================
-//
-// 目的：
-// 确认 TT 当前“API连接配置”
-// 是否来自 connectionManager.profiles，
-// 并与 llmConnections.list() 的结果进行对照。
-//
-// 只读取：
-// - id
-// - name
-//
-// 不读取：
-// - API Key
-// - Secret
-// - secretRef
-// - URL
-// - endpoint
-// - 完整对象
-// =========================
-
-try {
-
-    const context =
-        window.SillyTavern?.getContext?.();
-
-
-    const connectionManager =
-        context
-            ?.extensionSettings
-            ?.connectionManager;
-
-
-    // =========================
-    // A. 读取 Connection Profile
-    // =========================
-
-    const profiles =
-        connectionManager?.profiles;
-
-
-    if (
-        !Array.isArray(profiles)
-    ) {
-
-        report(
-            'Connection Profile：无法读取。',
-            'error'
-        );
-
-    } else {
-
-        report(
-            `Connection Profile 数量 = ${profiles.length}`
-        );
-
-
-        const profilePreview =
-            profiles
-                .slice(0, 5)
-                .map(profile => {
-
-                    const id =
-                        String(
-                            profile?.id ?? ''
-                        ).trim();
-
-
-                    const name =
-                        String(
-                            profile?.name ?? ''
-                        ).trim();
-
-
-                    return (
-                        name ||
-                        id ||
-                        '(无名称)'
-                    );
-
-                })
-                .filter(
-                    value => value
-                );
-
-
-        if (
-            profilePreview.length > 0
-        ) {
-
-            report(
-                `Profile 名称：` +
-                profilePreview.join(' | ')
-            );
-
-        } else {
-
-            report(
-                'Connection Profile 列表为空。',
-                'warning'
-            );
-
-        }
-
-    }
-
-
-    // =========================
-    // B. 读取 LLM Connection
-    // =========================
-
-    let llmResult;
-
-    try {
-
-        llmResult =
-            await api.list();
-
-    } catch (err) {
-
-        report(
-            `LLM Connection list() 调用失败：${err?.message || err}`,
-            'error'
-        );
-
-        throw err;
-
-    }
-
-
-    let llmConnections;
-
-
-    if (
-        Array.isArray(
-            llmResult?.connections
-        )
-    ) {
-
-        llmConnections =
-            llmResult.connections;
-
-    } else if (
-        Array.isArray(llmResult)
-    ) {
-
-        llmConnections =
-            llmResult;
-
-    } else {
-
-        report(
-            'LLM Connection list() 返回结构无法识别。',
-            'error'
-        );
-
-        throw new Error(
-            'LLM Connection list() 返回结构无法识别'
-        );
-
-    }
-
-
-    report(
-        `LLM Connection 数量 = ${llmConnections.length}`
-    );
-
-
-    const llmPreview =
-        llmConnections
-
-            .slice(0, 5)
-
-            .map(connection => {
-
-                const id =
-                    String(
-                        connection?.id ?? ''
-                    ).trim();
-
-
-                const name =
-                    String(
-                        connection?.displayName ||
-                        connection?.name ||
-                        ''
-                    ).trim();
-
-
-                return (
-                    name ||
-                    id ||
-                    '(无名称)'
-                );
-
-            })
-
-            .filter(
-                value => value
-            );
-
-
-    if (
-        llmPreview.length > 0
-    ) {
-
-        report(
-            `LLM Connection 名称：` +
-            llmPreview.join(' | ')
-        );
-
-    } else {
-
-        report(
-            'LLM Connection 列表为空。',
-            'warning'
-        );
-
-    }
-
-
-} catch (err) {
-
-    report(
-        `Connection Profile 对照诊断失败：${err?.message || err}`,
-        'warning'
-    );
-
-}
-
-
-// =========================
-// 转换成 Explorer 安全对象
-// =========================
-
-
-// =========================
-// 转换成 Explorer 安全对象
-// =========================
-
-
-// =========================
-// 转换成 Explorer 安全对象
-// =========================
-
-
-
-        
-
-        // =========================
-        // 转换成 Explorer 安全对象
-        // =========================
 
         return connections
 
@@ -708,11 +387,8 @@ try {
                             ''
                         ).trim();
 
-
                     return {
-
                         id,
-
                         name:
                             name || id,
 
@@ -724,7 +400,6 @@ try {
                                 : 'connection'
 
                     };
-
                 }
             );
 
