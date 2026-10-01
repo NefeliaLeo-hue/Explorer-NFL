@@ -68,22 +68,66 @@ export const isTauriTavern = () => {
 // 等待 TT Public ABI 就绪
 // =========================
 
-const waitForTauriTavernReady = async () => {
+const waitForTauriTavernReady = async (
+    timeoutMs = 5000
+) => {
 
     if (!isTauriTavern()) {
+
         return null;
+
     }
 
-    const host =
-        getTauriTavernHost();
+    const startTime = Date.now();
 
-    const readyPromise =
-        host?.ready ??
-        window.__TAURITAVERN_MAIN_READY__ ??
-        null;
+    while (
+        Date.now() - startTime <
+        timeoutMs
+    ) {
+        
+        const host =
+            getTauriTavernHost();
 
-    if (readyPromise) {
-        await readyPromise;
+        if (host) {
+
+            const ready =
+                host?.ready ??
+                window.__TAURITAVERN_MAIN_READY__ ??
+                null;
+
+            if (
+                ready &&
+                typeof ready.then === 'function'
+            ) {
+
+                try {
+
+                    await ready;
+
+                } catch (err) {
+
+                    console.warn(
+                        '[Explorer-NFL][TT] TT ready Promise rejected:',
+                        err
+                    );
+                }
+            }
+
+            const api =
+                host?.api?.llmConnections;
+
+            if (
+                api &&
+                typeof api.list === 'function'
+            ) {
+                return host;
+            }
+        }
+
+        await new Promise(
+            resolve =>
+                setTimeout(resolve, 100)
+        );
     }
 
     return getTauriTavernHost();
@@ -145,47 +189,79 @@ const getTauriTavernLLMConnectionsAPI = async () => {
 export const listTauriTavernLLMConnections =
     async () => {
 
-    const api =
-        await getTauriTavernLLMConnectionsAPI();
+        const api =
+            await getTauriTavernLLMConnectionsAPI();
 
-    if (!api) {
-        return [];
-    }
+        if (!api) {
 
-    const result =
-        await api.list();
+            throw new Error(
+                'TT LLM Connection Public API 尚未就绪'
+            );
+        }
 
-    const connections =
-        Array.isArray(result?.connections)
-            ? result.connections
-            : [];
+        const result =
+            await api.list();
 
-    return connections
-        .filter(connection =>
-            connection &&
-            connection.id
-        )
-        .map(connection => {
+        let connections;
 
-            const id =
-                String(connection.id);
+        if (
+            Array.isArray(
+                result?.connections
+            )
+        ) {
+            
+            connections =
+                result.connections;
 
-            const name =
-                String(
-                    connection.displayName || ''
-                ).trim();
+        } else if (
+            Array.isArray(result)
+        ) {
 
-            return {
-                id,
-                name: name || id,
+            // 兼容少数旧版 / 非标准实现
+            connections = result;
 
-                // 根据 TT 官方的 Model Target
-                // 物化规则：
-                // model-target-<target.id>
-                kind:
-                    id.startsWith('model-target-')
-                        ? 'model-target'
-                        : 'connection',
-            };
-        });
-};
+        } else {
+
+            throw new Error(
+                'TT llmConnections.list() 返回的数据格式无法识别'
+            );
+
+        }
+
+        return connections
+
+            .filter(
+                connection =>
+                    connection &&
+                    connection.id
+            )
+
+            .map(connection => {
+
+                const id =
+                    String(
+                        connection.id
+                    );
+
+                const name =
+                    String(
+                        connection.displayName ||
+                        connection.name ||
+                        ''
+                    ).trim();
+
+                return {
+                    id,
+                    name:
+                        name || id,
+
+                    kind:
+                        id.startsWith(
+                            'model-target-'
+                        )
+                            ? 'model-target'
+                            : 'connection'
+
+                };
+            });
+    };
