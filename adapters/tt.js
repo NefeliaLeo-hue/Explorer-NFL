@@ -430,26 +430,23 @@ export const listTauriTavernLLMConnections =
 
 
 // =========================
-// 临时诊断：读取 TT Model Target
+// 临时诊断：读取 TT Model Target 原始结构
 // =========================
 //
-// 注意：
-// 这里只读取非敏感摘要：
+// 本次只显示安全的摘要字段：
 // - id
 // - name
 // - kind
 // - mode
 //
-// 不读取：
+// 不读取、不显示：
 // - API Key
-// - Secret 本体
+// - Secret
 // - secretRef
 // - URL
 // - endpoint
-// - 完整 Connection Definition
-//
-// 这一段只是为了定位当前 TT UI 与
-// llmConnections.list() 为什么出现不同步。
+// - provider
+// - 完整对象
 // =========================
 
 try {
@@ -465,92 +462,135 @@ try {
             ?.modelTargets;
 
 
+    // =========================
+    // 原始数据类型 / 数量
+    // =========================
+
+    report(
+        `Model Target 原始类型 = ${
+            Array.isArray(modelTargets)
+                ? 'Array'
+                : typeof modelTargets
+        }`
+    );
+
+
     if (
-        Array.isArray(modelTargets)
+        !Array.isArray(modelTargets)
     ) {
 
-        const ccTargets =
-            modelTargets
-                .filter(
-                    target =>
-                        target?.kind ===
-                            'tauritavern.modelTarget' &&
-                        target?.mode === 'cc'
-                );
-
-
         report(
-            `Model Target 数量 = ${ccTargets.length}`
+            'Model Target 不是数组，无法继续诊断。',
+            'warning'
         );
-
-
-        const targetNames =
-            ccTargets
-
-                .slice(0, 5)
-
-                .map(
-                    target => {
-
-                        const id =
-                            String(
-                                target?.id || ''
-                            ).trim();
-
-                        const name =
-                            String(
-                                target?.name || ''
-                            ).trim();
-
-                        return (
-                            name ||
-                            id ||
-                            '(无名称)'
-                        );
-
-                    }
-                )
-
-                .filter(
-                    value => value
-                );
-
-
-        if (
-            targetNames.length > 0
-        ) {
-
-            report(
-                `前 ${targetNames.length} 个 Model Target：` +
-                targetNames.join(' | ')
-            );
-
-        } else {
-
-            report(
-                'Model Target 列表存在，但没有可显示名称。',
-                'warning'
-            );
-
-        }
 
     } else {
 
         report(
-            'Model Target = 无法读取或不是数组。',
-            'warning'
+            `Model Target 原始数量 = ${modelTargets.length}`
         );
 
+
+        // =========================
+        // 逐条显示安全摘要
+        // 最多显示前 5 条
+        // =========================
+
+        const previewCount =
+            Math.min(
+                modelTargets.length,
+                5
+            );
+
+
+        if (
+            previewCount === 0
+        ) {
+
+            report(
+                'Model Target 原始数组确实为空。',
+                'warning'
+            );
+
+        } else {
+
+            for (
+                let i = 0;
+                i < previewCount;
+                i++
+            ) {
+
+                const target =
+                    modelTargets[i];
+
+
+                if (
+                    !target ||
+                    typeof target !== 'object'
+                ) {
+
+                    report(
+                        `Target ${i + 1}：不是对象`,
+                        'warning'
+                    );
+
+                    continue;
+
+                }
+
+
+                const id =
+                    String(
+                        target.id ?? ''
+                    ).trim();
+
+
+                const name =
+                    String(
+                        target.name ?? ''
+                    ).trim();
+
+
+                const kind =
+                    String(
+                        target.kind ?? ''
+                    ).trim();
+
+
+                const mode =
+                    String(
+                        target.mode ?? ''
+                    ).trim();
+
+
+                report(
+                    `Target ${i + 1}：` +
+                    `id=${id || '(无)'}` +
+                    ` | name=${name || '(无)'}` +
+                    ` | kind=${kind || '(无)'}` +
+                    ` | mode=${mode || '(无)'}`
+                );
+
+            }
+
+        }
+
     }
+
 
 } catch (err) {
 
     report(
-        `Model Target 诊断失败：${err?.message || err}`,
+        `Model Target 原始诊断失败：${err?.message || err}`,
         'warning'
     );
 
 }
+
+
+// =========================
+// 转换成 Explorer 安全对象
+// =========================
 
 
 
