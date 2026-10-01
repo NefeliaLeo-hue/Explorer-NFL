@@ -269,6 +269,32 @@ const scanAPIProfiles = async () => {
 
     const profilesFound = new Map();
 
+        // =========================
+    // TT 平台识别诊断
+    // =========================
+
+    const ttDetected =
+        isTauriTavern();
+
+    console.log(
+        `[${extName}][诊断] ` +
+        `isTauriTavern = ${ttDetected}`
+    );
+
+    if (
+        typeof toastr !== 'undefined'
+    ) {
+
+        toastr.info(
+            `Explorer诊断：当前平台 = ${
+                ttDetected
+                    ? 'TauriTavern'
+                    : 'SillyTavern'
+            }`
+        );
+
+    }
+
 
     // =========================
     // TauriTavern
