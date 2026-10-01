@@ -430,22 +430,26 @@ export const listTauriTavernLLMConnections =
 
 
 // =========================
-// 临时诊断：检查 TT Connection Manager
+// 最终诊断：对照 Connection Profile
+// 与 LLM Connection
 // =========================
 //
-// 只读取安全的结构信息：
-// - ConnectionManager 顶层字段名
-// - profiles 数量
-// - profiles 的 id / name
-// - modelTargets 数量
+// 目的：
+// 确认 TT 当前“API连接配置”
+// 是否来自 connectionManager.profiles，
+// 并与 llmConnections.list() 的结果进行对照。
 //
-// 不读取、不显示：
+// 只读取：
+// - id
+// - name
+//
+// 不读取：
 // - API Key
 // - Secret
 // - secretRef
 // - URL
 // - endpoint
-// - 完整 Profile 对象
+// - 完整对象
 // =========================
 
 try {
@@ -460,164 +464,189 @@ try {
             ?.connectionManager;
 
 
+    // =========================
+    // A. 读取 Connection Profile
+    // =========================
+
+    const profiles =
+        connectionManager?.profiles;
+
+
     if (
-        !connectionManager ||
-        typeof connectionManager !== 'object'
+        !Array.isArray(profiles)
     ) {
 
         report(
-            'ConnectionManager 不存在。',
-            'warning'
+            'Connection Profile：无法读取。',
+            'error'
         );
 
     } else {
 
-        // =========================
-        // ConnectionManager 顶层字段
-        // =========================
-
-        const managerKeys =
-            Object.keys(
-                connectionManager
-            );
-
-
         report(
-            'ConnectionManager 字段：' +
-            (
-                managerKeys.length > 0
-                    ? managerKeys.join(', ')
-                    : '(空)'
-            )
+            `Connection Profile 数量 = ${profiles.length}`
         );
 
 
-        // =========================
-        // Connection Profile
-        // =========================
-
-        const profiles =
-            connectionManager.profiles;
-
-
-        report(
-            `Connection Profile 原始类型 = ${
-                Array.isArray(profiles)
-                    ? 'Array'
-                    : typeof profiles
-            }`
-        );
-
-
-        if (
-            Array.isArray(profiles)
-        ) {
-
-            report(
-                `Connection Profile 数量 = ${profiles.length}`
-            );
-
-
-            const previewCount =
-                Math.min(
-                    profiles.length,
-                    5
-                );
-
-
-            if (
-                previewCount === 0
-            ) {
-
-                report(
-                    'Connection Profile 原始数组为空。',
-                    'warning'
-                );
-
-            } else {
-
-                for (
-                    let i = 0;
-                    i < previewCount;
-                    i++
-                ) {
-
-                    const profile =
-                        profiles[i];
-
-
-                    if (
-                        !profile ||
-                        typeof profile !== 'object'
-                    ) {
-
-                        report(
-                            `Profile ${i + 1}：不是对象`,
-                            'warning'
-                        );
-
-                        continue;
-
-                    }
-
+        const profilePreview =
+            profiles
+                .slice(0, 5)
+                .map(profile => {
 
                     const id =
                         String(
-                            profile.id ?? ''
+                            profile?.id ?? ''
                         ).trim();
 
 
                     const name =
                         String(
-                            profile.name ?? ''
+                            profile?.name ?? ''
                         ).trim();
 
 
-                    report(
-                        `Profile ${i + 1}：` +
-                        `id=${id || '(无)'}` +
-                        ` | name=${name || '(无)'}`
+                    return (
+                        name ||
+                        id ||
+                        '(无名称)'
                     );
 
-                }
+                })
+                .filter(
+                    value => value
+                );
 
-            }
+
+        if (
+            profilePreview.length > 0
+        ) {
+
+            report(
+                `Profile 名称：` +
+                profilePreview.join(' | ')
+            );
+
+        } else {
+
+            report(
+                'Connection Profile 列表为空。',
+                'warning'
+            );
 
         }
 
+    }
 
-        // =========================
-        // Model Target
-        // =========================
 
-        const modelTargets =
-            connectionManager.modelTargets;
+    // =========================
+    // B. 读取 LLM Connection
+    // =========================
 
+    let llmResult;
+
+    try {
+
+        llmResult =
+            await api.list();
+
+    } catch (err) {
 
         report(
-            `Model Target 数量 = ${
-                Array.isArray(modelTargets)
-                    ? modelTargets.length
-                    : '非数组'
-            }`
+            `LLM Connection list() 调用失败：${err?.message || err}`,
+            'error'
         );
 
+        throw err;
 
-        // =========================
-        // 当前选中的 Profile
-        // 只显示类型，不显示值
-        // =========================
+    }
 
-        const selectedProfile =
-            connectionManager.selectedProfile;
 
+    let llmConnections;
+
+
+    if (
+        Array.isArray(
+            llmResult?.connections
+        )
+    ) {
+
+        llmConnections =
+            llmResult.connections;
+
+    } else if (
+        Array.isArray(llmResult)
+    ) {
+
+        llmConnections =
+            llmResult;
+
+    } else {
 
         report(
-            `selectedProfile 类型 = ${
-                selectedProfile === null
-                    ? 'null'
-                    : typeof selectedProfile
-            }`
+            'LLM Connection list() 返回结构无法识别。',
+            'error'
+        );
+
+        throw new Error(
+            'LLM Connection list() 返回结构无法识别'
+        );
+
+    }
+
+
+    report(
+        `LLM Connection 数量 = ${llmConnections.length}`
+    );
+
+
+    const llmPreview =
+        llmConnections
+
+            .slice(0, 5)
+
+            .map(connection => {
+
+                const id =
+                    String(
+                        connection?.id ?? ''
+                    ).trim();
+
+
+                const name =
+                    String(
+                        connection?.displayName ||
+                        connection?.name ||
+                        ''
+                    ).trim();
+
+
+                return (
+                    name ||
+                    id ||
+                    '(无名称)'
+                );
+
+            })
+
+            .filter(
+                value => value
+            );
+
+
+    if (
+        llmPreview.length > 0
+    ) {
+
+        report(
+            `LLM Connection 名称：` +
+            llmPreview.join(' | ')
+        );
+
+    } else {
+
+        report(
+            'LLM Connection 列表为空。',
+            'warning'
         );
 
     }
@@ -626,11 +655,16 @@ try {
 } catch (err) {
 
     report(
-        `ConnectionManager 诊断失败：${err?.message || err}`,
+        `Connection Profile 对照诊断失败：${err?.message || err}`,
         'warning'
     );
 
 }
+
+
+// =========================
+// 转换成 Explorer 安全对象
+// =========================
 
 
 // =========================
