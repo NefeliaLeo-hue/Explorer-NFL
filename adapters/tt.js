@@ -430,14 +430,14 @@ export const listTauriTavernLLMConnections =
 
 
 // =========================
-// 临时诊断：读取 TT Model Target 原始结构
+// 临时诊断：检查 TT Connection Manager
 // =========================
 //
-// 本次只显示安全的摘要字段：
-// - id
-// - name
-// - kind
-// - mode
+// 只读取安全的结构信息：
+// - ConnectionManager 顶层字段名
+// - profiles 数量
+// - profiles 的 id / name
+// - modelTargets 数量
 //
 // 不读取、不显示：
 // - API Key
@@ -445,8 +445,7 @@ export const listTauriTavernLLMConnections =
 // - secretRef
 // - URL
 // - endpoint
-// - provider
-// - 完整对象
+// - 完整 Profile 对象
 // =========================
 
 try {
@@ -455,125 +454,171 @@ try {
         window.SillyTavern?.getContext?.();
 
 
-    const modelTargets =
+    const connectionManager =
         context
             ?.extensionSettings
-            ?.connectionManager
-            ?.modelTargets;
-
-
-    // =========================
-    // 原始数据类型 / 数量
-    // =========================
-
-    report(
-        `Model Target 原始类型 = ${
-            Array.isArray(modelTargets)
-                ? 'Array'
-                : typeof modelTargets
-        }`
-    );
+            ?.connectionManager;
 
 
     if (
-        !Array.isArray(modelTargets)
+        !connectionManager ||
+        typeof connectionManager !== 'object'
     ) {
 
         report(
-            'Model Target 不是数组，无法继续诊断。',
+            'ConnectionManager 不存在。',
             'warning'
         );
 
     } else {
 
+        // =========================
+        // ConnectionManager 顶层字段
+        // =========================
+
+        const managerKeys =
+            Object.keys(
+                connectionManager
+            );
+
+
         report(
-            `Model Target 原始数量 = ${modelTargets.length}`
+            'ConnectionManager 字段：' +
+            (
+                managerKeys.length > 0
+                    ? managerKeys.join(', ')
+                    : '(空)'
+            )
         );
 
 
         // =========================
-        // 逐条显示安全摘要
-        // 最多显示前 5 条
+        // Connection Profile
         // =========================
 
-        const previewCount =
-            Math.min(
-                modelTargets.length,
-                5
-            );
+        const profiles =
+            connectionManager.profiles;
+
+
+        report(
+            `Connection Profile 原始类型 = ${
+                Array.isArray(profiles)
+                    ? 'Array'
+                    : typeof profiles
+            }`
+        );
 
 
         if (
-            previewCount === 0
+            Array.isArray(profiles)
         ) {
 
             report(
-                'Model Target 原始数组确实为空。',
-                'warning'
+                `Connection Profile 数量 = ${profiles.length}`
             );
 
-        } else {
 
-            for (
-                let i = 0;
-                i < previewCount;
-                i++
+            const previewCount =
+                Math.min(
+                    profiles.length,
+                    5
+                );
+
+
+            if (
+                previewCount === 0
             ) {
 
-                const target =
-                    modelTargets[i];
+                report(
+                    'Connection Profile 原始数组为空。',
+                    'warning'
+                );
 
+            } else {
 
-                if (
-                    !target ||
-                    typeof target !== 'object'
+                for (
+                    let i = 0;
+                    i < previewCount;
+                    i++
                 ) {
 
+                    const profile =
+                        profiles[i];
+
+
+                    if (
+                        !profile ||
+                        typeof profile !== 'object'
+                    ) {
+
+                        report(
+                            `Profile ${i + 1}：不是对象`,
+                            'warning'
+                        );
+
+                        continue;
+
+                    }
+
+
+                    const id =
+                        String(
+                            profile.id ?? ''
+                        ).trim();
+
+
+                    const name =
+                        String(
+                            profile.name ?? ''
+                        ).trim();
+
+
                     report(
-                        `Target ${i + 1}：不是对象`,
-                        'warning'
+                        `Profile ${i + 1}：` +
+                        `id=${id || '(无)'}` +
+                        ` | name=${name || '(无)'}`
                     );
 
-                    continue;
-
                 }
-
-
-                const id =
-                    String(
-                        target.id ?? ''
-                    ).trim();
-
-
-                const name =
-                    String(
-                        target.name ?? ''
-                    ).trim();
-
-
-                const kind =
-                    String(
-                        target.kind ?? ''
-                    ).trim();
-
-
-                const mode =
-                    String(
-                        target.mode ?? ''
-                    ).trim();
-
-
-                report(
-                    `Target ${i + 1}：` +
-                    `id=${id || '(无)'}` +
-                    ` | name=${name || '(无)'}` +
-                    ` | kind=${kind || '(无)'}` +
-                    ` | mode=${mode || '(无)'}`
-                );
 
             }
 
         }
+
+
+        // =========================
+        // Model Target
+        // =========================
+
+        const modelTargets =
+            connectionManager.modelTargets;
+
+
+        report(
+            `Model Target 数量 = ${
+                Array.isArray(modelTargets)
+                    ? modelTargets.length
+                    : '非数组'
+            }`
+        );
+
+
+        // =========================
+        // 当前选中的 Profile
+        // 只显示类型，不显示值
+        // =========================
+
+        const selectedProfile =
+            connectionManager.selectedProfile;
+
+
+        report(
+            `selectedProfile 类型 = ${
+                selectedProfile === null
+                    ? 'null'
+                    : typeof selectedProfile
+            }`
+        );
 
     }
 
@@ -581,11 +626,16 @@ try {
 } catch (err) {
 
     report(
-        `Model Target 原始诊断失败：${err?.message || err}`,
+        `ConnectionManager 诊断失败：${err?.message || err}`,
         'warning'
     );
 
 }
+
+
+// =========================
+// 转换成 Explorer 安全对象
+// =========================
 
 
 // =========================
