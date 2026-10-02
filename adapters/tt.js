@@ -162,17 +162,6 @@ const getTauriTavernLLMConnectionsAPI = async () => {
 };
 
 
-// =========================
-// 只读：列出 LLM Connections
-// =========================
-//
-// TT 官方 list() 返回 Connection summaries。
-// Explorer 只留下：
-// id
-// displayName → name
-//
-// 不把原始 DTO 整体交给 Explorer。
-// =========================
 
 // =========================
 // 只读：列出 LLM Connections
