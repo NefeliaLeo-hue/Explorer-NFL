@@ -812,24 +812,6 @@ const syncConnectionProfileUI = (
     `);
 
 
-    const navHtml = `
-        <div
-            style="
-                display:flex;
-                gap:8px;
-                margin-bottom:12px;
-                border-bottom:1px solid var(--SmartThemeBorderColor, #ccc);
-                padding-bottom:8px;
-            "
-        >
-            ${navButtons.join('')}
-        </div>
-    `;
-
-
-    body.append(navHtml);
-
-
             const navHtml = `
         <div style="
                 display:flex;
