@@ -253,7 +253,7 @@ const scanResources = () => {
 //
 // TT：
 // adapters/tt.js
-// → llmConnections.list()
+// → connectionManager.profiles
 //
 // Explorer 内部只保存资源 ID → 分类。
 // 显示名称放在内存中的 apiDisplayNames。
@@ -2312,18 +2312,19 @@ $(document).off("click.stAmBatchDel").on(
     saveSettingsDebounced();
 
 
-    // 重新扫描真实资源
+        // 重新扫描真实资源
     scanResources();
-    scanAPIProfiles();
+    await scanAPIProfiles();
 
 // 同步 SillyTavern 原生 Connection Profile UI
 syncConnectionProfileUI(
     deletedSelectedAPIProfile
 );
+        
 
     renderModalUI();
 
-
+        
     // =========================
     // 删除结果提示
     // =========================
