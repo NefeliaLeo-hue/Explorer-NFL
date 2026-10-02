@@ -828,6 +828,72 @@ const syncConnectionProfileUI = (
 
 
     body.append(navHtml);
+
+
+            const navHtml = `
+        <div style="
+                display:flex;
+                gap:8px;
+                margin-bottom:12px;
+                border-bottom:1px solid var(--SmartThemeBorderColor, #ccc);
+                padding-bottom:8px;
+          "
+        >
+            ${navButtons.join('')}
+        </div>
+    `;
+
+
+    body.append(navHtml);
+
+
+    // =========================
+    // TT API 专用提示
+    // =========================
+    // 仅在 TauriTavern 的 API 页面显示。
+    // SillyTavern 不显示。
+    // =========================
+
+    if (
+        currentTab === 'api' &&
+        isTauriTavern()
+    ) {
+
+        body.append(`
+            <div style="
+                    display:flex;
+                    align-items:flex-start;
+                    gap:8px;
+                    margin-bottom:12px;
+                    padding:8px 10px;
+                    border:1px solid var(--SmartThemeBorderColor, #ccc);
+                    border-radius:6px;
+                    background:rgba(128,128,128,0.10);
+                    font-size:0.82em;
+                    line-height:1.5;
+                    opacity:0.9;
+                    box-sizing:border-box;
+                "
+            >
+                <span style="
+                        flex-shrink:0;
+                        font-size:1.05em;
+                    "
+                >
+                    ℹ️
+                </span>
+
+                <span style="
+                        min-width:0;
+                        flex:1;
+                    "
+                >
+                    <b>TT 提示：</b>
+                    【仅保存模型】暂不纳入Explorer功能。目前，该资源暂时缺少适用于本插件的稳定通用读取方式，无法稳定读取，因此暂未接入管理功能。后续会持续关注相关接口变化并完善兼容。感谢各位的使用与反馈！
+                </span>
+            </div>
+        `);
+    }
     
 
     if (isRecycle) {
