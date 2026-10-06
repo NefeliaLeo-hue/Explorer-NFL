@@ -394,3 +394,83 @@ export const listTauriTavernLLMConnections =
             );
 
     };
+
+
+// =========================
+// UI Theme 适配
+// =========================
+//
+// 主题清单读取自酒馆原生 #themes 下拉框。
+// TT 切换主题必须经过原生 /theme 命令，
+// 这样才会保留当前聊天、角色和群组的主题绑定。
+// 不派发 #themes 的 change 事件。
+// =========================
+
+export const listTauriTavernThemes = () => {
+
+    const select =
+        document.querySelector('#themes');
+
+    if (!select) {
+        return [];
+    }
+
+    return [...select.options]
+        .map(option => String(option.value || '').trim())
+        .filter(Boolean);
+};
+
+
+export const applyTauriTavernTheme = async (
+    name,
+    context
+) => {
+
+    const executeSlashCommands =
+        context?.executeSlashCommandsWithOptions ||
+        window.SillyTavern
+            ?.getContext
+            ?.()
+            ?.executeSlashCommandsWithOptions;
+
+    if (typeof executeSlashCommands !== 'function') {
+        throw new Error(
+            '当前 TT 未提供酒馆命令接口，无法安全切换主题'
+        );
+    }
+
+    await executeSlashCommands(
+        `/theme ${JSON.stringify(String(name))}`
+    );
+};
+
+
+export const deleteTauriTavernTheme = async (
+    name,
+    requestHeaders
+) => {
+
+    const response = await fetch(
+        '/api/themes/delete',
+        {
+            method: 'POST',
+            headers: requestHeaders,
+            body: JSON.stringify({ name }),
+        }
+    );
+
+    if (!response.ok) {
+        throw new Error(
+            `主题删除失败：${name}（${response.status}）`
+        );
+    }
+
+    const select =
+        document.querySelector('#themes');
+
+    const option =
+        [...(select?.options || [])]
+            .find(candidate => candidate.value === name);
+
+    option?.remove();
+};
