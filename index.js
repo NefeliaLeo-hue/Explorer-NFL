@@ -65,8 +65,9 @@ const SVG = {
 let currentTab = 'world';
 let currentFilterCat = 'all';
 let currentSearchQuery = '';
-let showSelectedOnly = false;
+let showSelectedItems = false;
 let currentMatchingItems = [];
+let currentSelectedViewItemKeys = [];
 
 // 保存当前勾选的资源。
 // 使用「类型::名称」作为唯一标识，
@@ -668,12 +669,27 @@ const syncConnectionProfileUI = (
 };
 
 
-    const renderModalUI = () => {
+    const renderModalUI = (preserveScroll = false) => {
     const body = $('#st-am-content-body');
 
     if (!body.length) {
         return;
     }
+
+    const bodyScrollTop = preserveScroll ? body[0].scrollTop : 0;
+    const previousList = body.find('.st-am-scroll-list').first();
+    const listScrollTop = preserveScroll && previousList.length
+        ? previousList[0].scrollTop
+        : 0;
+
+    const restoreScrollPosition = () => {
+        if (!preserveScroll) return;
+        body[0].scrollTop = bodyScrollTop;
+        const nextList = body.find('.st-am-scroll-list').first();
+        if (nextList.length) {
+            nextList[0].scrollTop = listScrollTop;
+        }
+    };
 
     body.empty();
 
@@ -831,6 +847,73 @@ const syncConnectionProfileUI = (
 
     body.append(navHtml);
 
+    if (showSelectedItems && managerScope === 'all') {
+        currentSelectedViewItemKeys = [];
+        let selectedRowsHtml = '';
+
+        selectedItems.forEach(itemKey => {
+            const separatorIndex = itemKey.indexOf('::');
+            if (separatorIndex < 0) return;
+
+            const type = itemKey.slice(0, separatorIndex);
+            const resourceKey = itemKey.slice(separatorIndex + 2);
+            let itemMapForType;
+            let typeLabel;
+            let displayName = resourceKey;
+
+            if (type === 'world') {
+                itemMapForType = settings.worldMap;
+                typeLabel = '世界书';
+            } else if (type === 'preset') {
+                itemMapForType = settings.presetsMap;
+                typeLabel = '预设';
+            } else if (type === 'api') {
+                itemMapForType = settings.apiMap;
+                typeLabel = 'API';
+                displayName = apiDisplayNames.get(String(resourceKey)) || '连接名称暂不可用';
+            } else {
+                return;
+            }
+
+            const itemIndex = currentSelectedViewItemKeys.length;
+            currentSelectedViewItemKeys.push(itemKey);
+            const categoryName = itemMapForType[resourceKey] || '未分类';
+
+            selectedRowsHtml += `
+                <label class="st-am-selected-row">
+                    <input type="checkbox" class="st-am-selected-view-item" data-index="${itemIndex}" checked>
+                    <span class="st-am-selected-type">${typeLabel}</span>
+                    <span class="st-am-selected-name">${displayName}</span>
+                    <span class="st-am-selected-category">${categoryName}</span>
+                </label>
+            `;
+        });
+
+        if (!selectedRowsHtml) {
+            selectedRowsHtml = '<div class="st-am-selected-empty">目前没有已选资源</div>';
+        }
+
+        body.append(`
+            <div class="st-am-selected-view-header">
+                <div>
+                    <b>所有类型的已选资源（${selectedItems.size}）</b>
+                    <div class="st-am-selected-view-hint">取消勾选只会从本次选择中移除，不会删除资源。</div>
+                </div>
+                <button id="st-am-selected-view-back" class="menu_button st-am-selection-tool">返回资源列表</button>
+            </div>
+            <div class="st-am-scroll-list st-am-selected-list">${selectedRowsHtml}</div>
+            <div class="st-am-selected-view-actions">
+                <button id="st-am-batch-del-btn" class="menu_button danger" ${selectedItems.size === 0 ? 'disabled' : ''}>移入回收站</button>
+                <button id="st-am-clear-selection" class="menu_button st-am-selection-tool" ${selectedItems.size === 0 ? 'disabled' : ''}>清空选择</button>
+            </div>
+        `);
+
+        restoreScrollPosition();
+        return;
+    }
+
+    currentSelectedViewItemKeys = [];
+
 
     // =========================
     // TT API 专用提示
@@ -915,6 +998,7 @@ const syncConnectionProfileUI = (
             </div>
             <div style="max-height:50vh; overflow-y:auto;">${recycleListHtml}</div>
         `);
+        restoreScrollPosition();
         return;
     }
 
@@ -1111,9 +1195,7 @@ if (isAPI) {
             .includes(normalizedSearchQuery);
     });
     currentMatchingItems = matchingItems;
-    const displayItems = showSelectedOnly
-        ? matchingItems.filter(name => selectedItems.has(`${currentTab}::${name}`))
-        : matchingItems;
+    const displayItems = matchingItems;
 
     let moveOptionsHtml = `<option value="">-- 选择移动目标分类 --</option><option value="">(移至未分类)</option>`;
     categoriesList.forEach(c => { moveOptionsHtml += `<option value="${c}">${c}</option>`; });
@@ -1135,25 +1217,21 @@ const selectedCountText = selectedItems.size > 0
     ? `已选 ${selectedItems.size} 项 · 世界书 ${worldSelectedCount} / 预设 ${presetSelectedCount} / API ${apiSelectedCount}`
     : '未选择资源';
 
-const currentTypeSelectedCount = isWorld
-    ? worldSelectedCount
-    : isPreset
-        ? presetSelectedCount
-        : apiSelectedCount;
+const invertResultsButton = '<button id="st-am-invert-results" class="menu_button st-am-selection-tool">反选当前结果</button>';
 
-const invertResultsButton = showSelectedOnly
-    ? ''
-    : '<button id="st-am-invert-results" class="menu_button st-am-selection-tool">反选当前结果</button>';
-
-const categorySelectionButton = showSelectedOnly || currentFilterCat === 'all'
+const categorySelectionButton = currentFilterCat === 'all'
     ? ''
     : `<button id="st-am-select-category-results" class="menu_button st-am-selection-tool">选中本分类结果</button>`;
+
+const viewSelectedButton = managerScope === 'all'
+    ? `<button id="st-am-view-selected" class="menu_button st-am-selection-tool" title="${selectedItems.size === 0 ? '请先勾选资源' : '查看所有已选资源'}" ${selectedItems.size === 0 ? 'disabled' : ''}>查看已选项（${selectedItems.size}）</button>`
+    : '';
 
 const selectionToolsHtml = `
     <div class="st-am-selection-tools">
         ${invertResultsButton}
         ${categorySelectionButton}
-        <button id="st-am-toggle-selected-view" class="menu_button st-am-selection-tool" ${currentTypeSelectedCount === 0 && !showSelectedOnly ? 'disabled' : ''}>${showSelectedOnly ? '返回全部资源' : '只看本类型已选'}</button>
+        ${viewSelectedButton}
         <button id="st-am-clear-selection" class="menu_button st-am-selection-tool" ${selectedItems.size === 0 ? 'disabled' : ''}>清空选择</button>
     </div>
 `;
@@ -1279,9 +1357,7 @@ const batchBarHtml = `
     if (displayItems.length === 0) {
         const emptyMessage = allItems.length === 0
             ? '暂无条目，请点击上方“重新扫描”获取系统列表'
-            : showSelectedOnly
-                ? '当前类型没有符合条件的已选资源'
-                : '没有符合条件的资源';
+            : '没有符合条件的资源';
         itemsListHtml = `<div style="text-align:center; padding:35px 0; opacity:0.6; font-size:0.9em;">${emptyMessage}</div>`;
     } else {
         
@@ -1386,13 +1462,10 @@ if (
     body.append(catBadgesHtml);
     body.append(searchHtml);
     $('#st-am-search-input').val(currentSearchQuery);
-    $('.st-am-search-count').text(
-        showSelectedOnly
-            ? `已选匹配 ${displayItems.length} / ${matchingItems.length}`
-            : `匹配 ${matchingItems.length} / ${categoryItems.length}`
-    );
+    $('.st-am-search-count').text(`匹配 ${matchingItems.length} / ${categoryItems.length}`);
     body.append(batchBarHtml);
-    body.append(`<div style="max-height:48vh; overflow-y:auto;">${itemsListHtml}</div>`);
+    body.append(`<div id="st-am-items-list" class="st-am-scroll-list" style="max-height:48vh; overflow-y:auto;">${itemsListHtml}</div>`);
+    restoreScrollPosition();
 };
 
 const mountUIRoot = () => {
@@ -1431,7 +1504,7 @@ const mountUIRoot = () => {
         currentTab = $(this).data("tab");
         currentFilterCat = 'all';
         currentSearchQuery = '';
-        showSelectedOnly = false;
+        showSelectedItems = false;
         
         renderModalUI();
     });
@@ -1460,6 +1533,41 @@ const mountUIRoot = () => {
         renderModalUI();
     });
 
+    $(document).off("click.stAmViewSelected").on(
+        "click.stAmViewSelected",
+        "#st-am-view-selected",
+        function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            showSelectedItems = true;
+            renderModalUI();
+        }
+    );
+
+    $(document).off("click.stAmSelectedViewBack").on(
+        "click.stAmSelectedViewBack",
+        "#st-am-selected-view-back",
+        function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            showSelectedItems = false;
+            renderModalUI();
+        }
+    );
+
+    $(document).off("change.stAmSelectedViewItem").on(
+        "change.stAmSelectedViewItem",
+        ".st-am-selected-view-item",
+        function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const index = Number($(this).data('index'));
+            const itemKey = currentSelectedViewItemKeys[index];
+            if (itemKey) selectedItems.delete(itemKey);
+            renderModalUI(true);
+        }
+    );
+
     $(document).off("click.stAmInvertResults").on(
         "click.stAmInvertResults",
         "#st-am-invert-results",
@@ -1474,7 +1582,7 @@ const mountUIRoot = () => {
                     selectedItems.add(itemKey);
                 }
             });
-            renderModalUI();
+            renderModalUI(true);
         }
     );
 
@@ -1485,22 +1593,7 @@ const mountUIRoot = () => {
             e.preventDefault();
             e.stopPropagation();
             currentMatchingItems.forEach(name => selectedItems.add(`${currentTab}::${name}`));
-            renderModalUI();
-        }
-    );
-
-    $(document).off("click.stAmToggleSelectedView").on(
-        "click.stAmToggleSelectedView",
-        "#st-am-toggle-selected-view",
-        function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            showSelectedOnly = !showSelectedOnly;
-            if (showSelectedOnly) {
-                currentFilterCat = 'all';
-                currentSearchQuery = '';
-            }
-            renderModalUI();
+            renderModalUI(true);
         }
     );
 
@@ -1510,9 +1603,10 @@ const mountUIRoot = () => {
         function(e) {
             e.preventDefault();
             e.stopPropagation();
+            const wasShowingSelectedItems = showSelectedItems;
             selectedItems.clear();
-            showSelectedOnly = false;
-            renderModalUI();
+            showSelectedItems = false;
+            renderModalUI(!wasShowingSelectedItems);
         }
     );
 
@@ -1622,7 +1716,7 @@ if (currentTab === 'world') {
         selectedItems.delete(itemKey);
     }
 
-    renderModalUI();
+    renderModalUI(true);
 });
 
     $(document).off("change.stAmSelectAll").on(
@@ -1655,7 +1749,7 @@ if (currentTab === 'world') {
             }
         });
 
-        renderModalUI();
+        renderModalUI(true);
     }
 );
 
@@ -1745,7 +1839,7 @@ if (onlyType === 'world') {
     selectedItems.clear();
 
     saveSettingsDebounced();
-    renderModalUI();
+        renderModalUI(true);
 
     if (typeof toastr !== 'undefined') {
         toastr.success('已完成批量移动！');
@@ -1962,11 +2056,13 @@ $(document).off("click.stAmBatchDel").on(
     });
 
 
+    const wasShowingSelectedItems = showSelectedItems;
     selectedItems.clear();
+    showSelectedItems = false;
 
     saveSettingsDebounced();
 
-    renderModalUI();
+    renderModalUI(!wasShowingSelectedItems);
         
 
     if (typeof toastr !== 'undefined') {
@@ -2491,7 +2587,7 @@ const openManagerModal = async (
         // 每次打开面板时清空之前选中的项目
         selectedItems.clear();
         currentSearchQuery = '';
-        showSelectedOnly = false;
+        showSelectedItems = false;
 
         console.log("[Explorer-NFL] managerScope:", managerScope);
         console.log("[Explorer-NFL] currentTab:", currentTab);
