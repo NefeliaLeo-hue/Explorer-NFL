@@ -6,6 +6,11 @@ import {
     isTauriTavern,
     listTauriTavernLLMConnections
 } from './adapters/tt.js';
+import {
+    listThemes,
+    applyTheme,
+    deleteTheme
+} from './resources/theme.js';
 
 const extName = "Explorer-NFL";
 
@@ -15,9 +20,11 @@ if (!extension_settings[extName]) {
         worldCategories: [],
         presetsCategories: [],
         apiCategories: [],
+        themeCategories: [],
         worldMap: {},
         presetsMap: {},
         apiMap: {},
+        themeMap: {},
         recycleBin: []
     };
 }
@@ -36,6 +43,10 @@ if (!Array.isArray(settings.apiCategories)) {
     settings.apiCategories = [];
 }
 
+if (!Array.isArray(settings.themeCategories)) {
+    settings.themeCategories = [];
+}
+
 if (!settings.worldMap) {
     settings.worldMap = {};
 }
@@ -52,6 +63,10 @@ if (!settings.apiMap) {
     settings.apiMap = {};
 }
 
+if (!settings.themeMap) {
+    settings.themeMap = {};
+}
+
 const SVG = {
     manage: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path><line x1="12" y1="11" x2="12" y2="17"></line><line x1="9" y1="14" x2="15" y2="14"></line></svg>`,
     book: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>`,
@@ -61,6 +76,12 @@ const SVG = {
     plus: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>`,
     restore: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px;"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>`
 };
+
+const escapeAttribute = value => String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('"', '&quot;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;');
 
 let currentTab = 'world';
 let currentFilterCat = 'all';
@@ -91,17 +112,22 @@ let apiDisplayNames = new Map();
 // 这里只保存资源类型信息，不保存任何连接凭据。
 let apiDisplayKinds = new Map();
 
-// all = 可以查看世界书和预设
+const SVG_THEME = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;"><path d="M12 3a9 9 0 1 0 0 18h1.2a2 2 0 0 0 1.4-3.4 1.5 1.5 0 0 1 1.1-2.6H18a3 3 0 0 0 3-3c0-5-4-9-9-9Z"></path><circle cx="7.5" cy="10" r=".8"></circle><circle cx="11" cy="7" r=".8"></circle><circle cx="16" cy="9" r=".8"></circle></svg>`;
+
+// all = 可以查看全部资源
 // world = 只能查看世界书和回收站
 // preset = 只能查看预设和回收站
+// theme = 只能查看主题和回收站
 let managerScope = 'all';
 
 const scanResources = () => {
     const worldsFound = new Set();
     const presetsFound = new Set();
+    const themesFound = new Set();
 
     let worldScanAvailable = false;
     let presetScanAvailable = false;
+    let themeScanAvailable = false;
 
     // =========================
     // 扫描世界书
@@ -174,6 +200,13 @@ const scanResources = () => {
         });
     }
 
+    const themeSelect = $('#themes');
+
+    if (themeSelect.length) {
+        themeScanAvailable = true;
+        listThemes().forEach(name => themesFound.add(name));
+    }
+
 
     // =========================
     // 更新世界书列表
@@ -240,6 +273,26 @@ const scanResources = () => {
                 settings.presetsMap[name] = '';
             }
 
+        });
+    }
+
+    if (themeScanAvailable) {
+        const recycledThemes = new Set(
+            settings.recycleBin
+                .filter(item => item.type === 'theme')
+                .map(item => item.name)
+        );
+
+        Object.keys(settings.themeMap).forEach(name => {
+            if (!themesFound.has(name) && !recycledThemes.has(name)) {
+                delete settings.themeMap[name];
+            }
+        });
+
+        themesFound.forEach(name => {
+            if (settings.themeMap[name] === undefined) {
+                settings.themeMap[name] = '';
+            }
         });
     }
 
@@ -705,9 +758,14 @@ const syncConnectionProfileUI = (
         managerScope === 'all' ||
         managerScope === 'api';
 
+    const canShowTheme =
+        managerScope === 'all' ||
+        managerScope === 'theme';
+
     const isWorld = currentTab === 'world';
     const isPreset = currentTab === 'preset';
     const isAPI = currentTab === 'api';
+    const isTheme = currentTab === 'theme';
     const isRecycle = currentTab === 'recycle';
 
 
@@ -718,7 +776,8 @@ const syncConnectionProfileUI = (
         (
             (isWorld && !canShowWorld) ||
             (isPreset && !canShowPreset) ||
-            (isAPI && !canShowAPI)
+            (isAPI && !canShowAPI) ||
+            (isTheme && !canShowTheme)
         )
     ) {
         currentTab =
@@ -726,9 +785,11 @@ const syncConnectionProfileUI = (
                 ? 'world'
                 : canShowPreset
                     ? 'preset'
-                    : canShowAPI
-                        ? 'api'
-                        : 'recycle';
+                        : canShowAPI
+                            ? 'api'
+                            : canShowTheme
+                                ? 'theme'
+                                : 'recycle';
     }
 
 
@@ -809,6 +870,28 @@ const syncConnectionProfileUI = (
         `);
     }
 
+    if (canShowTheme) {
+        navButtons.push(`
+            <button
+                class="menu_button st-am-tab-btn"
+                data-tab="theme"
+                style="
+                    flex:1;
+                    margin:0;
+                    display:flex;
+                    align-items:center;
+                    justify-content:center;
+                    ${currentTab === 'theme'
+                        ? 'border-color:var(--SmartThemeQuoteColor); font-weight:bold; background:rgba(128,128,128,0.2);'
+                        : ''
+                    }
+                "
+            >
+                ${SVG_THEME} UI 主题
+            </button>
+        `);
+    }
+
     // 回收站始终显示
     navButtons.push(`
         <button
@@ -871,6 +954,9 @@ const syncConnectionProfileUI = (
                 itemMapForType = settings.apiMap;
                 typeLabel = 'API';
                 displayName = apiDisplayNames.get(String(resourceKey)) || '连接名称暂不可用';
+            } else if (type === 'theme') {
+                itemMapForType = settings.themeMap;
+                typeLabel = 'UI 主题';
             } else {
                 return;
             }
@@ -970,13 +1056,15 @@ const syncConnectionProfileUI = (
             recycleListHtml = `<div style="text-align:center; padding:35px 0; opacity:0.6;">回收站空空如也</div>`;
         } else {
             settings.recycleBin.forEach((item, idx) => {
-                const typeLabel =
+            const typeLabel =
     item.type === 'world'
         ? '世界书'
         : item.type === 'preset'
             ? '预设'
             : item.type === 'api'
                 ? 'API'
+                : item.type === 'theme'
+                    ? 'UI 主题'
                 : '未知';
                 recycleListHtml += `
                     <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 12px; margin-bottom:6px; background:rgba(128,128,128,0.1); border-radius:6px;">
@@ -1009,6 +1097,8 @@ if (isWorld) {
     categoriesList = settings.presetsCategories;
 } else if (isAPI) {
     categoriesList = settings.apiCategories;
+} else if (isTheme) {
+    categoriesList = settings.themeCategories;
 } else {
     categoriesList = [];
 }
@@ -1022,6 +1112,8 @@ if (isWorld) {
         settings.presetsCategories = [];
     } else if (isAPI) {
         settings.apiCategories = [];
+    } else if (isTheme) {
+        settings.themeCategories = [];
     }
 
     saveSettingsDebounced();
@@ -1035,6 +1127,8 @@ if (isWorld) {
     itemMap = settings.presetsMap;
 } else if (isAPI) {
     itemMap = settings.apiMap;
+} else if (isTheme) {
+    itemMap = settings.themeMap;
 } else {
     itemMap = {};
 }
@@ -1044,8 +1138,10 @@ if (isWorld) {
     recycleType = 'world';
 } else if (isPreset) {
     recycleType = 'preset';
-} else {
+} else if (isAPI) {
     recycleType = 'api';
+} else {
+    recycleType = 'theme';
 }
 
 const recycledSet = new Set(
@@ -1212,9 +1308,13 @@ const apiSelectedCount = [...selectedItems].filter(itemKey =>
     itemKey.startsWith('api::')
 ).length;
 
+const themeSelectedCount = [...selectedItems].filter(itemKey =>
+    itemKey.startsWith('theme::')
+).length;
+
 
 const selectedCountText = selectedItems.size > 0
-    ? `已选 ${selectedItems.size} 项 · 世界书 ${worldSelectedCount} / 预设 ${presetSelectedCount} / API ${apiSelectedCount}`
+    ? `已选 ${selectedItems.size} 项 · 世界书 ${worldSelectedCount} / 预设 ${presetSelectedCount} / API ${apiSelectedCount} / UI 主题 ${themeSelectedCount}`
     : '未选择资源';
 
 const invertResultsButton = '<button id="st-am-invert-results" class="menu_button st-am-selection-tool">反选当前结果</button>';
@@ -1378,6 +1478,20 @@ if (isAPI) {
 
             
  let apiKindLabel = '';
+let themeActionHtml = '';
+
+if (isTheme) {
+    const isActiveTheme = String($('#themes').val() || '') === String(name);
+
+    themeActionHtml = `
+        <button
+            class="menu_button st-am-apply-theme"
+            data-name="${escapeAttribute(name)}"
+            ${isActiveTheme ? 'disabled title="当前正在使用"' : 'title="应用此主题"'}
+            style="margin:0 6px 0 0; padding:3px 8px; font-size:0.78em; white-space:nowrap;"
+        >${isActiveTheme ? '正在使用' : '应用'}</button>
+    `;
+}
 
 if (
     isAPI &&
@@ -1433,7 +1547,7 @@ if (
     <input
         type="checkbox"
         class="st-am-item-cb"
-        data-name="${name}"
+        data-name="${escapeAttribute(name)}"
         data-type="${currentTab}"
         ${checked}
         style="margin-right:8px;"
@@ -1452,7 +1566,10 @@ if (
 
     ${apiKindLabel}
 </div>
-                    <span style="font-size:0.75em; opacity:0.7; padding:2px 6px; border-radius:4px; background:rgba(0,0,0,0.15); flex-shrink:0;">${currentCat}</span>
+                    <div style="display:flex; align-items:center; flex-shrink:0;">
+                        ${themeActionHtml}
+                        <span style="font-size:0.75em; opacity:0.7; padding:2px 6px; border-radius:4px; background:rgba(0,0,0,0.15);">${currentCat}</span>
+                    </div>
                 </label>
             `;
         });
@@ -1508,6 +1625,32 @@ const mountUIRoot = () => {
         
         renderModalUI();
     });
+
+    $(document).off("click.stAmApplyTheme").on(
+        "click.stAmApplyTheme",
+        ".st-am-apply-theme",
+        async function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            const name = String($(this).data('name') || '');
+
+            if (!name) return;
+
+            try {
+                await applyTheme(name, getContext());
+                renderModalUI();
+                if (typeof toastr !== 'undefined') {
+                    toastr.success(`已应用主题：${name}`);
+                }
+            } catch (err) {
+                console.error('[Explorer-NFL] 应用主题失败：', err);
+                if (typeof toastr !== 'undefined') {
+                    toastr.error(err.message || '主题应用失败');
+                }
+            }
+        }
+    );
 
     $(document).off("input.stAmSearch").on(
         "input.stAmSearch",
@@ -1636,7 +1779,9 @@ const mountUIRoot = () => {
         ? settings.worldCategories
         : currentTab === 'preset'
             ? settings.presetsCategories
-            : settings.apiCategories;
+            : currentTab === 'api'
+                ? settings.apiCategories
+                : settings.themeCategories;
 
 
         if (!targetList.includes(val)) {
@@ -1683,6 +1828,11 @@ if (currentTab === 'world') {
 
     targetList = settings.apiCategories;
     targetMap = settings.apiMap;
+
+} else if (currentTab === 'theme') {
+
+    targetList = settings.themeCategories;
+    targetMap = settings.themeMap;
 
 } else {
 
@@ -1765,7 +1915,7 @@ if (currentTab === 'world') {
     }
 
     // 当前分类移动只允许处理同一种资源。
-    // 世界书和预设混合选择时，不执行分类移动，
+    // 不同资源类型混合选择时，不执行分类移动，
     // 避免把资源移动到错误的分类表里。
     const selectedTypes = new Set();
 
@@ -1783,7 +1933,7 @@ if (currentTab === 'world') {
     if (selectedTypes.size > 1) {
         if (typeof toastr !== 'undefined') {
             toastr.warning(
-                '当前同时选择了世界书和预设。\n\n' +
+                '当前同时选择了不同类型的资源。\n\n' +
                 '分类移动一次只能处理一种资源，' +
                 '请分别移动。'
             );
@@ -1798,7 +1948,8 @@ if (currentTab === 'world') {
     if (
     onlyType !== 'world' &&
     onlyType !== 'preset' &&
-    onlyType !== 'api'
+    onlyType !== 'api' &&
+    onlyType !== 'theme'
 ) {
     if (typeof toastr !== 'undefined') {
         toastr.warning('无法识别所选资源类型');
@@ -1816,6 +1967,9 @@ if (onlyType === 'world') {
 
 } else if (onlyType === 'api') {
     targetMap = settings.apiMap;
+
+} else if (onlyType === 'theme') {
+    targetMap = settings.themeMap;
 }
 
     selectedItems.forEach(itemKey => {
@@ -1872,6 +2026,7 @@ $(document).off("click.stAmBatchDel").on(
     let worldCount = 0;
     let presetCount = 0;
     let apiCount = 0;
+    let themeCount = 0;
 
     selectedItems.forEach(itemKey => {
 
@@ -1891,6 +2046,8 @@ $(document).off("click.stAmBatchDel").on(
 
         } else if (type === 'api') {
             apiCount++;
+        } else if (type === 'theme') {
+            themeCount++;
         }
 
     });
@@ -1898,7 +2055,8 @@ $(document).off("click.stAmBatchDel").on(
     const totalCount =
         worldCount +
         presetCount +
-        apiCount;
+        apiCount +
+        themeCount;
         
 
     // =========================
@@ -1924,6 +2082,10 @@ $(document).off("click.stAmBatchDel").on(
 
         summary +=
             `API：${apiCount} 个\n`;
+    }
+
+    if (themeCount > 0) {
+        summary += `UI 主题：${themeCount} 个\n`;
     }
 
     summary +=
@@ -2053,6 +2215,14 @@ $(document).off("click.stAmBatchDel").on(
             return;
         }
 
+        if (type === 'theme') {
+            settings.recycleBin.push({
+                type: 'theme',
+                name,
+                oldCat: settings.themeMap[name] || ''
+            });
+        }
+
     });
 
 
@@ -2139,6 +2309,10 @@ $(document).off("click.stAmBatchDel").on(
 
     }
 
+    else if (item.type === 'theme') {
+        settings.themeMap[item.name] = item.oldCat || '';
+    }
+
 
     // =========================
     // 未知类型
@@ -2192,11 +2366,17 @@ $(document).off("click.stAmBatchDel").on(
         return;
     }
 
+    const containsThemes = settings.recycleBin.some(item => item.type === 'theme');
+    const themeRefreshNote = containsThemes
+        ? "\n\n永久删除 UI 主题后，需要刷新酒馆页面以同步主题列表。"
+        : '';
+
     const confirmed = confirm(
         "⚠️ 确定彻底清空回收站吗？\n\n" +
         "这里的资源将被从 SillyTavern 中永久删除。\n" +
-        "删除后无法通过本插件恢复。\n\n" +
-        "确定要继续吗？"
+        "删除后无法通过本插件恢复。" +
+        themeRefreshNote +
+        "\n\n确定要继续吗？"
     );
 
     if (!confirmed) {
@@ -2210,6 +2390,7 @@ $(document).off("click.stAmBatchDel").on(
 
     let successCount = 0;
     let failedItems = [];
+    let deletedTheme = false;
 // 本次批量删除中，是否删除了当前正在使用的 Profile
     let deletedSelectedAPIProfile = false;
 
@@ -2432,6 +2613,31 @@ $(document).off("click.stAmBatchDel").on(
                 successCount++;
             }
 
+            else if (item.type === 'theme') {
+                const activeTheme = String($('#themes').val() || '');
+
+                if (activeTheme === item.name) {
+                    const deletingThemeNames = new Set(
+                        recycleItems
+                            .filter(recycleItem => recycleItem.type === 'theme')
+                            .map(recycleItem => recycleItem.name)
+                    );
+                    const replacementTheme = listThemes()
+                        .find(themeName => !deletingThemeNames.has(themeName));
+
+                    if (!replacementTheme) {
+                        throw new Error('当前主题没有可替换的主题，请先保留至少一个主题');
+                    }
+
+                    await applyTheme(replacementTheme, getContext());
+                }
+
+                await deleteTheme(item.name, getRequestHeaders());
+                delete settings.themeMap[item.name];
+                deletedTheme = true;
+                successCount++;
+            }
+
 
             // =========================
             // 未知类型
@@ -2518,7 +2724,15 @@ syncConnectionProfileUI(
     // 删除结果提示
     // =========================
 
-    if (failedItems.length === 0) {
+    if (failedItems.length === 0 && deletedTheme) {
+
+        if (typeof toastr !== 'undefined') {
+            toastr.warning(
+                `已永久删除 ${successCount} 个资源。请刷新酒馆页面，同步主题列表。`
+            );
+        }
+
+    } else if (failedItems.length === 0) {
 
         if (typeof toastr !== 'undefined') {
 
@@ -2534,7 +2748,8 @@ syncConnectionProfileUI(
             toastr.warning(
                 `已删除 ${successCount} 个资源，` +
                 `${failedItems.length} 个资源删除失败，` +
-                `仍保留在回收站。`
+                `仍保留在回收站。` +
+                (deletedTheme ? '主题列表需要刷新酒馆页面后同步。' : '')
             );
         }
     }
@@ -2577,9 +2792,10 @@ const openManagerModal = async (
         console.log("[Explorer-NFL] 打开管理面板");
 
         // 保存当前入口允许查看的范围
-        // all    = 世界书 + 预设 + 回收站
+        // all    = 全部资源 + 回收站
         // world  = 世界书 + 回收站
         // preset = 预设 + 回收站
+        // theme  = UI 主题 + 回收站
         managerScope = scope;
 
         currentTab = targetTab;
@@ -2587,6 +2803,7 @@ const openManagerModal = async (
         // 每次打开面板时清空之前选中的项目
         selectedItems.clear();
         currentSearchQuery = '';
+        currentFilterCat = 'all';
         showSelectedItems = false;
 
         console.log("[Explorer-NFL] managerScope:", managerScope);
@@ -2622,6 +2839,29 @@ renderModalUI();
 
 const injectButtons = () => {
     const mode = settings.entryMode || 'both';
+
+    // UI 主题按钮
+    if (mode === 'native' || mode === 'both') {
+        const themeSelect = $('#themes');
+
+        if (themeSelect.length && !$('#st-am-btn-theme').length) {
+            const container =
+                themeSelect.closest('.flex-container').length
+                    ? themeSelect.closest('.flex-container')
+                    : themeSelect.parent();
+
+            container.after(`
+                <div id="st-am-btn-theme"
+                    class="menu_button st-am-native-btn"
+                    style="width:100%; margin:8px 0; box-sizing:border-box; display:flex; justify-content:center; align-items:center;">
+                    ${SVG_THEME}
+                    批量管理 UI 主题
+                </div>
+            `);
+        }
+    } else {
+        $('#st-am-btn-theme').remove();
+    }
 
     // =========================
     // 预设界面按钮
@@ -2813,6 +3053,18 @@ jQuery(async () => {
                 e.stopPropagation();
 
                 openManagerModal('api', 'api');
+            }
+        );
+
+    $(document)
+        .off("click.stAmThemeBtn")
+        .on(
+            "click.stAmThemeBtn",
+            "#st-am-btn-theme",
+            function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                openManagerModal('theme', 'theme');
             }
         );
 
