@@ -88,12 +88,77 @@ let currentFilterCat = 'all';
 let currentSearchQuery = '';
 let showSelectedItems = false;
 let currentMatchingItems = [];
+let currentMatchingSelectedCount = 0;
 let currentSelectedViewItemKeys = [];
 
 // 保存当前勾选的资源。
 // 使用「类型::名称」作为唯一标识，
 // 避免世界书和预设同名时发生冲突。
 let selectedItems = new Set();
+const selectedCounts = {
+    world: 0,
+    preset: 0,
+    api: 0,
+    theme: 0
+};
+
+const addSelectedItem = itemKey => {
+    if (selectedItems.has(itemKey)) return;
+
+    selectedItems.add(itemKey);
+    const type = itemKey.slice(0, itemKey.indexOf('::'));
+    if (Object.prototype.hasOwnProperty.call(selectedCounts, type)) {
+        selectedCounts[type]++;
+    }
+};
+
+const removeSelectedItem = itemKey => {
+    if (!selectedItems.delete(itemKey)) return;
+
+    const type = itemKey.slice(0, itemKey.indexOf('::'));
+    if (Object.prototype.hasOwnProperty.call(selectedCounts, type)) {
+        selectedCounts[type] = Math.max(0, selectedCounts[type] - 1);
+    }
+};
+
+const clearSelectedItems = () => {
+    selectedItems.clear();
+    currentMatchingSelectedCount = 0;
+    Object.keys(selectedCounts).forEach(type => {
+        selectedCounts[type] = 0;
+    });
+};
+
+const getSelectedCountText = () => selectedItems.size > 0
+    ? `已选 ${selectedItems.size} 项 · 世界书 ${selectedCounts.world} / 预设 ${selectedCounts.preset} / API ${selectedCounts.api} / UI 主题 ${selectedCounts.theme}`
+    : '未选择资源';
+
+const updateSelectionUI = () => {
+    const selectedCount = selectedItems.size;
+    $('.st-am-selected-count').text(getSelectedCountText());
+
+    const viewSelectedButton = $('#st-am-view-selected');
+    if (viewSelectedButton.length) {
+        viewSelectedButton
+            .text(`查看已选项（${selectedCount}）`)
+            .prop('disabled', selectedCount === 0)
+            .attr('title', selectedCount === 0 ? '请先勾选资源' : '查看所有已选资源');
+    }
+
+    $('#st-am-clear-selection').prop('disabled', selectedCount === 0);
+    if (showSelectedItems) {
+        $('#st-am-batch-del-btn').prop('disabled', selectedCount === 0);
+        $('.st-am-selected-view-total').text(`所有类型的已选资源（${selectedCount}）`);
+    }
+
+    if ($('#st-am-select-all').length) {
+        $('#st-am-select-all').prop(
+            'checked',
+            currentMatchingItems.length > 0 &&
+            currentMatchingSelectedCount === currentMatchingItems.length
+        );
+    }
+};
 
 // =========================
 // API 显示名称缓存
@@ -982,7 +1047,7 @@ const syncConnectionProfileUI = (
         body.append(`
             <div class="st-am-selected-view-header">
                 <div>
-                    <b>所有类型的已选资源（${selectedItems.size}）</b>
+                    <b class="st-am-selected-view-total">所有类型的已选资源（${selectedItems.size}）</b>
                     <div class="st-am-selected-view-hint">取消勾选只会从本次选择中移除，不会删除资源。</div>
                 </div>
                 <button id="st-am-selected-view-back" class="menu_button st-am-selection-tool">返回资源列表</button>
@@ -1292,30 +1357,12 @@ if (isAPI) {
     });
     currentMatchingItems = matchingItems;
     const displayItems = matchingItems;
+    currentMatchingSelectedCount = 0;
 
     let moveOptionsHtml = `<option value="">-- 选择移动目标分类 --</option><option value="">(移至未分类)</option>`;
     categoriesList.forEach(c => { moveOptionsHtml += `<option value="${c}">${c}</option>`; });
 
-    const worldSelectedCount = [...selectedItems].filter(itemKey =>
-    itemKey.startsWith('world::')
-).length;
-
-const presetSelectedCount = [...selectedItems].filter(itemKey =>
-    itemKey.startsWith('preset::')
-).length;
-
-const apiSelectedCount = [...selectedItems].filter(itemKey =>
-    itemKey.startsWith('api::')
-).length;
-
-const themeSelectedCount = [...selectedItems].filter(itemKey =>
-    itemKey.startsWith('theme::')
-).length;
-
-
-const selectedCountText = selectedItems.size > 0
-    ? `已选 ${selectedItems.size} 项 · 世界书 ${worldSelectedCount} / 预设 ${presetSelectedCount} / API ${apiSelectedCount} / UI 主题 ${themeSelectedCount}`
-    : '未选择资源';
+const selectedCountText = getSelectedCountText();
 
 const invertResultsButton = '<button id="st-am-invert-results" class="menu_button st-am-selection-tool">反选当前结果</button>';
 
@@ -1386,6 +1433,7 @@ const batchBarHtml = `
             </label>
 
             <span
+                class="st-am-selected-count"
                 style="
                     font-size:0.8em;
                     opacity:0.8;
@@ -1463,7 +1511,9 @@ const batchBarHtml = `
         
         displayItems.forEach(name => {
     const itemKey = `${currentTab}::${name}`;
-    const checked = selectedItems.has(itemKey) ? 'checked' : '';
+    const isSelected = selectedItems.has(itemKey);
+    if (isSelected) currentMatchingSelectedCount++;
+    const checked = isSelected ? 'checked' : '';
     const currentCat = itemMap[name] || '未分类';
 
     let displayName = name;
@@ -1704,10 +1754,22 @@ const mountUIRoot = () => {
         function(e) {
             e.preventDefault();
             e.stopPropagation();
-            const index = Number($(this).data('index'));
+            const index = Number($(this).attr('data-index'));
             const itemKey = currentSelectedViewItemKeys[index];
-            if (itemKey) selectedItems.delete(itemKey);
-            renderModalUI(true);
+            if (itemKey) {
+                removeSelectedItem(itemKey);
+                currentSelectedViewItemKeys.splice(index, 1);
+                $(this).closest('.st-am-selected-row').remove();
+                $('.st-am-selected-view-item').each(function(nextIndex) {
+                    $(this).attr('data-index', nextIndex);
+                });
+                if (currentSelectedViewItemKeys.length === 0) {
+                    $('.st-am-selected-list').html(
+                        '<div class="st-am-selected-empty">目前没有已选资源</div>'
+                    );
+                }
+                updateSelectionUI();
+            }
         }
     );
 
@@ -1720,12 +1782,18 @@ const mountUIRoot = () => {
             currentMatchingItems.forEach(name => {
                 const itemKey = `${currentTab}::${name}`;
                 if (selectedItems.has(itemKey)) {
-                    selectedItems.delete(itemKey);
+                    removeSelectedItem(itemKey);
                 } else {
-                    selectedItems.add(itemKey);
+                    addSelectedItem(itemKey);
                 }
             });
-            renderModalUI(true);
+            currentMatchingSelectedCount =
+                currentMatchingItems.length - currentMatchingSelectedCount;
+            $('.st-am-item-cb').each(function() {
+                const itemKey = `${$(this).data('type')}::${$(this).data('name')}`;
+                $(this).prop('checked', selectedItems.has(itemKey));
+            });
+            updateSelectionUI();
         }
     );
 
@@ -1735,8 +1803,13 @@ const mountUIRoot = () => {
         function(e) {
             e.preventDefault();
             e.stopPropagation();
-            currentMatchingItems.forEach(name => selectedItems.add(`${currentTab}::${name}`));
-            renderModalUI(true);
+            currentMatchingItems.forEach(name => addSelectedItem(`${currentTab}::${name}`));
+            currentMatchingSelectedCount = currentMatchingItems.length;
+            $('.st-am-item-cb').each(function() {
+                const itemKey = `${$(this).data('type')}::${$(this).data('name')}`;
+                $(this).prop('checked', selectedItems.has(itemKey));
+            });
+            updateSelectionUI();
         }
     );
 
@@ -1747,9 +1820,14 @@ const mountUIRoot = () => {
             e.preventDefault();
             e.stopPropagation();
             const wasShowingSelectedItems = showSelectedItems;
-            selectedItems.clear();
+            clearSelectedItems();
             showSelectedItems = false;
-            renderModalUI(!wasShowingSelectedItems);
+            if (wasShowingSelectedItems) {
+                renderModalUI();
+            } else {
+                $('.st-am-item-cb').prop('checked', false);
+                updateSelectionUI();
+            }
         }
     );
 
@@ -1859,14 +1937,24 @@ if (currentTab === 'world') {
     const type = $(this).data('type');
 
     const itemKey = `${type}::${name}`;
+    const wasSelected = selectedItems.has(itemKey);
 
     if ($(this).is(':checked')) {
-        selectedItems.add(itemKey);
+        addSelectedItem(itemKey);
+        if (!wasSelected && type === currentTab) {
+            currentMatchingSelectedCount++;
+        }
     } else {
-        selectedItems.delete(itemKey);
+        removeSelectedItem(itemKey);
+        if (wasSelected && type === currentTab) {
+            currentMatchingSelectedCount = Math.max(
+                0,
+                currentMatchingSelectedCount - 1
+            );
+        }
     }
 
-    renderModalUI(true);
+    updateSelectionUI();
 });
 
     $(document).off("change.stAmSelectAll").on(
@@ -1878,6 +1966,9 @@ if (currentTab === 'world') {
         e.stopPropagation();
 
         const isChecked = $(this).is(':checked');
+        currentMatchingSelectedCount = isChecked
+            ? currentMatchingItems.length
+            : 0;
 
         $('.st-am-item-cb').each(function() {
 
@@ -1890,16 +1981,16 @@ if (currentTab === 'world') {
 
             if (isChecked) {
 
-                selectedItems.add(itemKey);
+                addSelectedItem(itemKey);
 
             } else {
 
-                selectedItems.delete(itemKey);
+                removeSelectedItem(itemKey);
 
             }
         });
 
-        renderModalUI(true);
+        updateSelectionUI();
     }
 );
 
@@ -1990,7 +2081,7 @@ if (onlyType === 'world') {
         }
     });
 
-    selectedItems.clear();
+    clearSelectedItems();
 
     saveSettingsDebounced();
         renderModalUI(true);
@@ -2227,7 +2318,7 @@ $(document).off("click.stAmBatchDel").on(
 
 
     const wasShowingSelectedItems = showSelectedItems;
-    selectedItems.clear();
+    clearSelectedItems();
     showSelectedItems = false;
 
     saveSettingsDebounced();
@@ -2801,7 +2892,7 @@ const openManagerModal = async (
         currentTab = targetTab;
 
         // 每次打开面板时清空之前选中的项目
-        selectedItems.clear();
+        clearSelectedItems();
         currentSearchQuery = '';
         currentFilterCat = 'all';
         showSelectedItems = false;
