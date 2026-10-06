@@ -861,31 +861,6 @@ const syncConnectionProfileUI = (
     const navButtons = [];
 
 
-    // 世界书按钮
-    if (canShowWorld) {
-
-        navButtons.push(`
-            <button
-                class="menu_button st-am-tab-btn"
-                data-tab="world"
-                style="
-                    flex:1;
-                    margin:0;
-                    display:flex;
-                    align-items:center;
-                    justify-content:center;
-                    ${currentTab === 'world'
-                        ? 'border-color:var(--SmartThemeQuoteColor); font-weight:bold; background:rgba(128,128,128,0.2);'
-                        : ''
-                    }
-                "
-            >
-                ${SVG.book} 世界书分类
-            </button>
-        `);
-    }
-
-
     // 预设按钮
     if (canShowPreset) {
 
@@ -931,6 +906,30 @@ const syncConnectionProfileUI = (
                 "
             >
                 ${SVG.manage} API
+            </button>
+        `);
+    }
+
+    // 世界书按钮
+    if (canShowWorld) {
+
+        navButtons.push(`
+            <button
+                class="menu_button st-am-tab-btn"
+                data-tab="world"
+                style="
+                    flex:1;
+                    margin:0;
+                    display:flex;
+                    align-items:center;
+                    justify-content:center;
+                    ${currentTab === 'world'
+                        ? 'border-color:var(--SmartThemeQuoteColor); font-weight:bold; background:rgba(128,128,128,0.2);'
+                        : ''
+                    }
+                "
+            >
+                ${SVG.book} 世界书分类
             </button>
         `);
     }
@@ -3085,32 +3084,36 @@ if (worldBox.length && !$('#st-am-btn-world').length) {
                 : $('.extensions_menu').first();
 
 
-        if (menu.length && !$('#st-am-btn-magic').length) {
+        const existingMagicButton = $('#st-am-btn-magic');
+        if (
+            existingMagicButton.length &&
+            !existingMagicButton.closest('#st-am-wand-container').length
+        ) {
+            existingMagicButton.remove();
+        }
 
-            menu.append(`
-                <div id="st-am-btn-magic"
-                class="st-am-native-btn"
-                style="
-                cursor:pointer;
-                display:flex;
-                width:100%;
-                box-sizing:border-box;
-                margin:4px 0;
-                padding:8px 12px;
-                justify-content:flex-start;">
-                    ${SVG.manage}
-                    <span>
-                    资源管理器
-                    </span>
-                </div>
-            `);
+        if (menu.length) {
+            let wandContainer = menu.find('#st-am-wand-container').first();
 
+            if (!wandContainer.length) {
+                menu.append('<div id="st-am-wand-container" class="extension_container"></div>');
+                wandContainer = menu.find('#st-am-wand-container').first();
+            }
+
+            if (!wandContainer.find('#st-am-btn-magic').length) {
+                wandContainer.append(`
+                    <div id="st-am-btn-magic" class="list-group-item flex-container flexGap5">
+                        <div class="fa-solid fa-folder-plus extensionsMenuExtensionButton"></div>
+                        <span>E-NFL资源管理器</span>
+                    </div>
+                `);
+            }
         }
 
 
     } else {
 
-        $('#st-am-btn-magic').remove();
+        $('#st-am-wand-container, #st-am-btn-magic').remove();
 
     }
 
