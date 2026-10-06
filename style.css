@@ -163,3 +163,12 @@
     gap: 8px;
     margin-top: 10px;
 }
+
+.st-am-apply-theme {
+    flex-shrink: 0;
+}
+
+.st-am-apply-theme:disabled {
+    opacity: 0.65;
+    cursor: default;
+}
