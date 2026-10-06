@@ -64,6 +64,7 @@ const SVG = {
 
 let currentTab = 'world';
 let currentFilterCat = 'all';
+let currentSearchQuery = '';
 
 // 保存当前勾选的资源。
 // 使用「类型::名称」作为唯一标识，
@@ -1004,6 +1005,20 @@ if (isAPI) {
 
     catBadgesHtml += `</div>`;
 
+    const searchHtml = `
+        <div class="st-am-search-row">
+            <input
+                type="search"
+                id="st-am-search-input"
+                class="text_pole"
+                placeholder="搜索名称或分类..."
+                autocomplete="off"
+                aria-label="搜索资源名称或分类"
+            >
+            <span class="st-am-search-count">匹配 ${allItems.length} / ${allItems.length}</span>
+        </div>
+    `;
+
     const createCatHtml = `
     <div
         style="
@@ -1074,11 +1089,24 @@ if (isAPI) {
     </div>
 `;
 
-    const displayItems = allItems.filter(name => {
+    const categoryItems = allItems.filter(name => {
         const cat = itemMap[name] || '';
         if (currentFilterCat === 'all') return true;
         if (currentFilterCat === 'uncategorized') return !cat;
         return cat === currentFilterCat;
+    });
+
+    const normalizedSearchQuery = currentSearchQuery.trim().toLocaleLowerCase();
+    const displayItems = categoryItems.filter(name => {
+        if (!normalizedSearchQuery) return true;
+
+        const displayName = isAPI
+            ? (apiDisplayNames.get(String(name)) || name)
+            : name;
+        const categoryName = itemMap[name] || '';
+        return `${displayName} ${categoryName}`
+            .toLocaleLowerCase()
+            .includes(normalizedSearchQuery);
     });
 
     let moveOptionsHtml = `<option value="">-- 选择移动目标分类 --</option><option value="">(移至未分类)</option>`;
@@ -1199,7 +1227,7 @@ const batchBarHtml = `
                             : ''
                     }
                 >
-                全选
+                全选当前结果
             </label>
 
             <span
@@ -1270,7 +1298,10 @@ const batchBarHtml = `
 
     let itemsListHtml = '';
     if (displayItems.length === 0) {
-        itemsListHtml = `<div style="text-align:center; padding:35px 0; opacity:0.6; font-size:0.9em;">暂无条目，请点击上方“重新扫描”获取系统列表</div>`;
+        const emptyMessage = allItems.length === 0
+            ? '暂无条目，请点击上方“重新扫描”获取系统列表'
+            : '没有符合条件的资源';
+        itemsListHtml = `<div style="text-align:center; padding:35px 0; opacity:0.6; font-size:0.9em;">${emptyMessage}</div>`;
     } else {
         
         displayItems.forEach(name => {
@@ -1372,6 +1403,9 @@ if (
 
     body.append(createCatHtml);
     body.append(catBadgesHtml);
+    body.append(searchHtml);
+    $('#st-am-search-input').val(currentSearchQuery);
+    $('.st-am-search-count').text(`匹配 ${displayItems.length} / ${categoryItems.length}`);
     body.append(batchBarHtml);
     body.append(`<div style="max-height:48vh; overflow-y:auto;">${itemsListHtml}</div>`);
 };
@@ -1411,9 +1445,27 @@ const mountUIRoot = () => {
         e.stopPropagation();
         currentTab = $(this).data("tab");
         currentFilterCat = 'all';
+        currentSearchQuery = '';
         
         renderModalUI();
     });
+
+    $(document).off("input.stAmSearch").on(
+        "input.stAmSearch",
+        "#st-am-search-input",
+        function(e) {
+            e.stopPropagation();
+            const caretPosition = this.selectionStart;
+            currentSearchQuery = String($(this).val() || '');
+            renderModalUI();
+
+            const refreshedInput = document.getElementById('st-am-search-input');
+            if (refreshedInput) {
+                refreshedInput.focus();
+                refreshedInput.setSelectionRange(caretPosition, caretPosition);
+            }
+        }
+    );
 
     $(document).off("click.stAmFilter").on("click.stAmFilter", ".st-am-filter-cat", function(e) {
         e.preventDefault();
@@ -2397,6 +2449,7 @@ const openManagerModal = async (
 
         // 每次打开面板时清空之前选中的项目
         selectedItems.clear();
+        currentSearchQuery = '';
 
         console.log("[Explorer-NFL] managerScope:", managerScope);
         console.log("[Explorer-NFL] currentTab:", currentTab);
