@@ -76,3 +76,30 @@
     opacity: 0.7;
     white-space: nowrap;
 }
+
+.st-am-batch-bar {
+    position: sticky;
+    top: -14px;
+    z-index: 20;
+    border: 1px solid var(--SmartThemeBorderColor, #ccc);
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.14);
+}
+
+.st-am-selection-tools {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+}
+
+.st-am-selection-tool {
+    margin: 0;
+    padding: 4px 8px;
+    font-size: 0.78em;
+    white-space: nowrap;
+}
+
+.st-am-selection-tool:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
