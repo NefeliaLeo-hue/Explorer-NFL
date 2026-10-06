@@ -65,6 +65,8 @@ const SVG = {
 let currentTab = 'world';
 let currentFilterCat = 'all';
 let currentSearchQuery = '';
+let showSelectedOnly = false;
+let currentMatchingItems = [];
 
 // 保存当前勾选的资源。
 // 使用「类型::名称」作为唯一标识，
@@ -1097,7 +1099,7 @@ if (isAPI) {
     });
 
     const normalizedSearchQuery = currentSearchQuery.trim().toLocaleLowerCase();
-    const displayItems = categoryItems.filter(name => {
+    const matchingItems = categoryItems.filter(name => {
         if (!normalizedSearchQuery) return true;
 
         const displayName = isAPI
@@ -1108,6 +1110,10 @@ if (isAPI) {
             .toLocaleLowerCase()
             .includes(normalizedSearchQuery);
     });
+    currentMatchingItems = matchingItems;
+    const displayItems = showSelectedOnly
+        ? matchingItems.filter(name => selectedItems.has(`${currentTab}::${name}`))
+        : matchingItems;
 
     let moveOptionsHtml = `<option value="">-- 选择移动目标分类 --</option><option value="">(移至未分类)</option>`;
     categoriesList.forEach(c => { moveOptionsHtml += `<option value="${c}">${c}</option>`; });
@@ -1125,62 +1131,32 @@ const apiSelectedCount = [...selectedItems].filter(itemKey =>
 ).length;
 
 
-let selectedCountText = '未选择资源';
+const selectedCountText = selectedItems.size > 0
+    ? `已选 ${selectedItems.size} 项 · 世界书 ${worldSelectedCount} / 预设 ${presetSelectedCount} / API ${apiSelectedCount}`
+    : '未选择资源';
 
+const currentTypeSelectedCount = isWorld
+    ? worldSelectedCount
+    : isPreset
+        ? presetSelectedCount
+        : apiSelectedCount;
 
-if (
-    worldSelectedCount > 0 &&
-    presetSelectedCount > 0 &&
-    apiSelectedCount > 0
-) {
+const invertResultsButton = showSelectedOnly
+    ? ''
+    : '<button id="st-am-invert-results" class="menu_button st-am-selection-tool">反选当前结果</button>';
 
-    selectedCountText =
-        `已选择 ${worldSelectedCount} 个世界书 / ` +
-        `${presetSelectedCount} 个预设 / ` +
-        `${apiSelectedCount} 个 API`;
+const categorySelectionButton = showSelectedOnly || currentFilterCat === 'all'
+    ? ''
+    : `<button id="st-am-select-category-results" class="menu_button st-am-selection-tool">选中本分类结果</button>`;
 
-} else if (
-    worldSelectedCount > 0 &&
-    presetSelectedCount > 0
-) {
-
-    selectedCountText =
-        `已选择 ${worldSelectedCount} 个世界书 / ` +
-        `${presetSelectedCount} 个预设`;
-
-} else if (
-    worldSelectedCount > 0 &&
-    apiSelectedCount > 0
-) {
-
-    selectedCountText =
-        `已选择 ${worldSelectedCount} 个世界书 / ` +
-        `${apiSelectedCount} 个 API`;
-
-} else if (
-    presetSelectedCount > 0 &&
-    apiSelectedCount > 0
-) {
-
-    selectedCountText =
-        `已选择 ${presetSelectedCount} 个预设 / ` +
-        `${apiSelectedCount} 个 API`;
-
-} else if (worldSelectedCount > 0) {
-
-    selectedCountText =
-        `已选择 ${worldSelectedCount} 个世界书`;
-
-} else if (presetSelectedCount > 0) {
-
-    selectedCountText =
-        `已选择 ${presetSelectedCount} 个预设`;
-
-} else if (apiSelectedCount > 0) {
-
-    selectedCountText =
-        `已选择 ${apiSelectedCount} 个 API`;
-}
+const selectionToolsHtml = `
+    <div class="st-am-selection-tools">
+        ${invertResultsButton}
+        ${categorySelectionButton}
+        <button id="st-am-toggle-selected-view" class="menu_button st-am-selection-tool" ${currentTypeSelectedCount === 0 && !showSelectedOnly ? 'disabled' : ''}>${showSelectedOnly ? '返回全部资源' : '只看本类型已选'}</button>
+        <button id="st-am-clear-selection" class="menu_button st-am-selection-tool" ${selectedItems.size === 0 ? 'disabled' : ''}>清空选择</button>
+    </div>
+`;
 
 
 const batchBarHtml = `
@@ -1194,6 +1170,7 @@ const batchBarHtml = `
             border-radius:6px;
             margin-bottom:8px;
         "
+        class="st-am-batch-bar"
     >
 
         <div
@@ -1242,6 +1219,8 @@ const batchBarHtml = `
 
         </div>
 
+
+        ${selectionToolsHtml}
 
         <div
             style="
@@ -1300,7 +1279,9 @@ const batchBarHtml = `
     if (displayItems.length === 0) {
         const emptyMessage = allItems.length === 0
             ? '暂无条目，请点击上方“重新扫描”获取系统列表'
-            : '没有符合条件的资源';
+            : showSelectedOnly
+                ? '当前类型没有符合条件的已选资源'
+                : '没有符合条件的资源';
         itemsListHtml = `<div style="text-align:center; padding:35px 0; opacity:0.6; font-size:0.9em;">${emptyMessage}</div>`;
     } else {
         
@@ -1405,7 +1386,11 @@ if (
     body.append(catBadgesHtml);
     body.append(searchHtml);
     $('#st-am-search-input').val(currentSearchQuery);
-    $('.st-am-search-count').text(`匹配 ${displayItems.length} / ${categoryItems.length}`);
+    $('.st-am-search-count').text(
+        showSelectedOnly
+            ? `已选匹配 ${displayItems.length} / ${matchingItems.length}`
+            : `匹配 ${matchingItems.length} / ${categoryItems.length}`
+    );
     body.append(batchBarHtml);
     body.append(`<div style="max-height:48vh; overflow-y:auto;">${itemsListHtml}</div>`);
 };
@@ -1446,6 +1431,7 @@ const mountUIRoot = () => {
         currentTab = $(this).data("tab");
         currentFilterCat = 'all';
         currentSearchQuery = '';
+        showSelectedOnly = false;
         
         renderModalUI();
     });
@@ -1471,9 +1457,64 @@ const mountUIRoot = () => {
         e.preventDefault();
         e.stopPropagation();
         currentFilterCat = String($(this).data("cat"));
-        selectedItems.clear();
         renderModalUI();
     });
+
+    $(document).off("click.stAmInvertResults").on(
+        "click.stAmInvertResults",
+        "#st-am-invert-results",
+        function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            currentMatchingItems.forEach(name => {
+                const itemKey = `${currentTab}::${name}`;
+                if (selectedItems.has(itemKey)) {
+                    selectedItems.delete(itemKey);
+                } else {
+                    selectedItems.add(itemKey);
+                }
+            });
+            renderModalUI();
+        }
+    );
+
+    $(document).off("click.stAmSelectCategory").on(
+        "click.stAmSelectCategory",
+        "#st-am-select-category-results",
+        function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            currentMatchingItems.forEach(name => selectedItems.add(`${currentTab}::${name}`));
+            renderModalUI();
+        }
+    );
+
+    $(document).off("click.stAmToggleSelectedView").on(
+        "click.stAmToggleSelectedView",
+        "#st-am-toggle-selected-view",
+        function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            showSelectedOnly = !showSelectedOnly;
+            if (showSelectedOnly) {
+                currentFilterCat = 'all';
+                currentSearchQuery = '';
+            }
+            renderModalUI();
+        }
+    );
+
+    $(document).off("click.stAmClearSelection").on(
+        "click.stAmClearSelection",
+        "#st-am-clear-selection",
+        function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            selectedItems.clear();
+            showSelectedOnly = false;
+            renderModalUI();
+        }
+    );
 
     $(document).off("click.stAmAddCat").on(
     "click.stAmAddCat",
@@ -2450,6 +2491,7 @@ const openManagerModal = async (
         // 每次打开面板时清空之前选中的项目
         selectedItems.clear();
         currentSearchQuery = '';
+        showSelectedOnly = false;
 
         console.log("[Explorer-NFL] managerScope:", managerScope);
         console.log("[Explorer-NFL] currentTab:", currentTab);
