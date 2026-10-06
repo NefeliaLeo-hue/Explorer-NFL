@@ -408,7 +408,7 @@ const scanAPIProfiles = async () => {
     ) {
 
         toastr.info(
-            `Explorer诊断：当前平台 = ${
+            `Explorer检测：当前平台 = ${
                 ttDetected
                     ? 'TauriTavern'
                     : 'SillyTavern'
@@ -880,7 +880,7 @@ const syncConnectionProfileUI = (
                     }
                 "
             >
-                ${SVG.sliders} 预设分类
+                ${SVG.sliders} 预设
             </button>
         `);
     }
@@ -929,7 +929,7 @@ const syncConnectionProfileUI = (
                     }
                 "
             >
-                ${SVG.book} 世界书分类
+                ${SVG.book} 世界书
             </button>
         `);
     }
@@ -3247,11 +3247,10 @@ eventSource.on(event_types.WORLDINFO_SETTINGS_UPDATED, () => {
         openManagerModal('world', 'all');
     });
 
-        if (typeof toastr !== 'undefined') {
-            toastr.success("Explorer-NFL 加载成功！");
-        }
-
     } catch (err) {
         console.error(`[${extName}] 设置面板加载失败:`, err);
+        if (typeof toastr !== 'undefined') {
+            toastr.error("Explorer-NFL 加载失败，请查看控制台日志。");
+        }
     }
 });
