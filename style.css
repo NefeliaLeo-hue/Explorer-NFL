@@ -54,3 +54,25 @@
 #toast-container {
     z-index: 2147483648 !important;
 }
+
+
+/* Resource search controls */
+.st-am-search-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 10px;
+}
+
+#st-am-search-input {
+    flex: 1;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.st-am-search-count {
+    flex-shrink: 0;
+    font-size: 0.78em;
+    opacity: 0.7;
+    white-space: nowrap;
+}
